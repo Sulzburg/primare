@@ -5,6 +5,6 @@
     "documentation": "https://github.com/Sulzburg/primare_ab/blob/main/README.md",
     "dependencies": [],
     "codeowners": ["@guidol"],
-    "iot_class": "local_polling"
+    "iot_class": "local_polling",
     "requirements": []
 }
