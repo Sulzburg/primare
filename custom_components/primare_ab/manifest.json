@@ -1,0 +1,9 @@
+{
+    "domain": "primare",
+    "name": "Primare",
+    "version": "1.0.0",
+    "documentation": "https://github.com/yourgithub/primare_spa25",
+    "dependencies": [],
+    "codeowners": ["@yourgithub"],
+    "requirements": []
+}
