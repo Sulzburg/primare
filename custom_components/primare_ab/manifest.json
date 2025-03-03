@@ -1,7 +1,7 @@
 {
     "domain": "primare",
     "name": "Primare",
-    "version": "1.0.0",
+    "version": "0.0.1",
     "documentation": "https://github.com/Sulzburg/primare_ab/blob/main/README.md",
     "dependencies": [],
     "codeowners": ["@guidol"],
