@@ -2,9 +2,9 @@
     "domain": "primare",
     "name": "Primare",
     "version": "1.0.0",
-    "documentation": "https://github.com/yourgithub/primare_spa25",
+    "documentation": "https://github.com/Sulzburg/primare_ab/blob/main/README.md",
     "dependencies": [],
-    "codeowners": ["@yourgithub"],
+    "codeowners": ["@guidol"],
     "iot_class": "local_polling"
     "requirements": []
 }
