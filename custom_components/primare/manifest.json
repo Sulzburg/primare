@@ -1,0 +1,10 @@
+{
+    "domain": "primare",
+    "name": "Primare",
+    "version": "0.0.1",
+    "documentation": "https://github.com/Sulzburg/primare_ab/blob/main/README.md",
+    "dependencies": [],
+    "codeowners": ["@guidol"],
+    "iot_class": "local_polling",
+    "requirements": []
+}
