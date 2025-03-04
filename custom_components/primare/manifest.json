@@ -1,9 +1,7 @@
-{
-    "domain": "primare",
+{    "domain": "primare",
     "name": "Primare",
     "version": "1.0.0",
     "documentation": "https://github.com/Sulzburg/primare",
     "dependencies": [],
     "codeowners": ["@Sulzburg"],
-    "iot_class": "local_polling"
-}
+    "iot_class": "local_polling"}
