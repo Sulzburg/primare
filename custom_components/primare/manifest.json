@@ -5,6 +5,5 @@
     "documentation": "https://github.com/Sulzburg/primare",
     "dependencies": [],
     "codeowners": ["@Sulzburg"],
-    "requirements": [],
     "iot_class": "local_polling"
 }
