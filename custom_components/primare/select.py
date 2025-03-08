@@ -6,32 +6,33 @@ from datetime import timedelta
 
 _LOGGER = logging.getLogger(__name__)
 
-SP25_IP = "XXX.XXX.XXX.XXX"
+SP25_IP = "XXX.XXX.XXX.XXX"  """replace with the IP of your SP(A)25"""
 SP25_PORT = 50006
 END_CHARACTER = "\r\n"
 
-# Inputs mit sprechenden Namen
+# Inputs with speaking names
+"""Replace between the quotation marks with your Input names"""
 INPUT_PRESETS = {
     "BD LG": "!1inp.1",
     "BD PAN": "!1inp.2",
     "FireTV": "!1inp.3",
     "HDMI ARC": "!1inp.4",
     "TV Opto": "!1inp.5",
-#    "Game Console": "!1inp.6",
-#    "SAT/Receiver": "!1inp.7",
+    "Game Console": "!1inp.6",
+    "SAT/Receiver": "!1inp.7",
     "PC/Mac": "!1inp.8",
-#    "Radio": "!1inp.9",
-#    "PC": "!1inp.10",
-#    "Spotify": "!1inp.11",
-#    "Tidal": "!1inp.12",
-#    "Deezer": "!1inp.13",
-#    "USB": "!1inp.14",
-#    "Kabel TV": "!1inp.15",
-#    "Test Input 1": "!1inp.16",
+    "Radio": "!1inp.9",
+    "PC": "!1inp.10",
+    "Spotify": "!1inp.11",
+    "Tidal": "!1inp.12",
+    "Deezer": "!1inp.13",
+    "USB": "!1inp.14",
+    "Kabel TV": "!1inp.15",
+    "Test Input 1": "!1inp.16",
     "Prisma": "!1inp.17"
 }
 
-# DSP-Modi mit sprechenden Namen
+# DSP-Modes with speaking names
 DSP_MODES = {
     "Auto": "!1sur.1",
     "Bypass": "!1sur.2",
@@ -45,7 +46,7 @@ DSP_MODES = {
 }
 
 def send_command(command):
-    """Sendet einen Befehl an den SP25 und gibt die Antwort zurück."""
+    """Sends command to SP(A)25 and returns the answer."""
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.connect((SP25_IP, SP25_PORT))
@@ -57,7 +58,7 @@ def send_command(command):
         return None
 
 def get_current_input():
-    """Fragt den aktuellen Eingang ab."""
+    """Retrieve the current Input."""
     response = send_command("!1inp.?")
     for name, cmd in INPUT_PRESETS.items():
         if response == cmd:
@@ -65,7 +66,7 @@ def get_current_input():
     return None
 
 def get_current_dsp():
-    """Fragt den aktuellen DSP-Modus ab."""
+    """Retrieve the current DSP Mode."""
     response = send_command("!1sur.?")
     for name, cmd in DSP_MODES.items():
         if response == cmd:
@@ -73,7 +74,7 @@ def get_current_dsp():
     return None
 
 def setup_platform(hass, config, add_entities, discovery_info=None):
-    """Setzt die Select-Entitäten in Home Assistant auf."""
+    """Sets the Select entity in Home Assistant."""
     coordinator = DataUpdateCoordinator(
         hass,
         _LOGGER,
@@ -85,14 +86,14 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
     coordinator.async_config_entry_first_refresh()
 
 async def async_update_data():
-    """Abrufen der aktuellen Daten."""
+    """Retrieve the current condition."""
     return {
         "input": get_current_input(),
         "dsp": get_current_dsp()
     }
 
 class SP25InputSelect(CoordinatorEntity, SelectEntity):
-    """Preset-Auswahl für den SP25 (Eingangsquelle)."""
+    """Preset for SP25 (Input)."""
 
     def __init__(self, coordinator):
         super().__init__(coordinator)
@@ -114,7 +115,7 @@ class SP25InputSelect(CoordinatorEntity, SelectEntity):
             self.coordinator.async_request_refresh()
 
 class SP25DSPSelect(CoordinatorEntity, SelectEntity):
-    """DSP-Modus-Auswahl für den SP25."""
+    """DSP-Mode select"""
 
     def __init__(self, coordinator):
         super().__init__(coordinator)
