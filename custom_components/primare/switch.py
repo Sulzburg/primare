@@ -6,7 +6,7 @@ from datetime import timedelta
 
 _LOGGER = logging.getLogger(__name__)
 
-SP25_IP = "192.168.0.80"
+SP25_IP = "XXX.XXX.XXX.XXX"  """replace with the IP of your SP(A)25"""
 SP25_PORT = 50006
 END_CHARACTER = "\r\n"
 
