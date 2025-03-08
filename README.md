@@ -1,7 +1,8 @@
 # Primare
+<hr>
 HA Custom_Integration for Primare SP(A)25 Prisma
-
-### You get 5 entities:
+<hr>
+<B> You get 5 entities:</B>
 
 - Volume
 
@@ -13,12 +14,13 @@ HA Custom_Integration for Primare SP(A)25 Prisma
 
 - DSP Select
 
-### Installation
+<hr>
+<B>Installation</B>
 
 under custom_integrations create a folder named "primare"
 and put the following files there:
 
-__init__.py
+`__init__.py`
 
 const.py
 
@@ -45,4 +47,5 @@ select:
 number:   
   - platform: primare
 ```
+<hr>
 Save everything and restart HA
