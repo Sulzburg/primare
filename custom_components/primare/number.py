@@ -6,12 +6,12 @@ from datetime import timedelta
 
 _LOGGER = logging.getLogger(__name__)
 
-SP25_IP = "192.168.0.80"
+SP25_IP = "XXX.XXX.XXX.XXX"  """replace with the IP of your SP(A)25"""
 SP25_PORT = 50006
 END_CHARACTER = "\r\n"
 
 def send_command(command):
-    """Sendet einen Befehl an den SP25 und gibt die Antwort zurück."""
+    """Sends command to SP(A)25 and returns the answer."""
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.connect((SP25_IP, SP25_PORT))
@@ -23,14 +23,14 @@ def send_command(command):
         return None
 
 def get_current_volume():
-    """Fragt die aktuelle Lautstärke ab."""
+    """Checks the current volume."""
     response = send_command("!1vol.?")
     if response and response.startswith("!1vol."):
         return int(response.split(".")[1])
     return None
 
 def setup_platform(hass, config, add_entities, discovery_info=None):
-    """Setzt die Number-Entität in Home Assistant auf."""
+    """Sets the Number entity in Home Assistant."""
     coordinator = DataUpdateCoordinator(
         hass,
         _LOGGER,
@@ -42,11 +42,11 @@ def setup_platform(hass, config, add_entities, discovery_info=None):
     coordinator.async_config_entry_first_refresh()
 
 async def async_update_data():
-    """Abrufen der aktuellen Lautstärke."""
+    """Retrieve the current volume."""
     return {"volume": get_current_volume()}
 
 class SP25VolumeSlider(CoordinatorEntity, NumberEntity):
-    """Lautstärkeregler für den SP25."""
+    """Volume control for SP(A)25"""
 
     def __init__(self, coordinator):
         super().__init__(coordinator)
