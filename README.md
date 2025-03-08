@@ -17,7 +17,7 @@ HA Custom_Integration for Primare SP(A)25 Prisma
 <hr>
 <B>Installation</B>
 
-under custom_integrations create a folder named "primare"
+go to custom_integrations, create a folder named "primare"
 and put the following files there:
 
 `__init__.py`
