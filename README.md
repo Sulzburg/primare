@@ -1,5 +1,5 @@
 # Primare
-<hr>
+
 HA Custom_Integration for Primare SP(A)25 Prisma
 <hr>
 <B> You get 5 entities:</B>
