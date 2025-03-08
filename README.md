@@ -1,6 +1,14 @@
 # primare
 HA Custom_Integration for Primare SP(A)25 Prisma
 
+you get 5 entities:
+Volume
+Power on/off
+Mute on/off
+Input select
+DSP Select
+
+
 under custom_integrations create a folder named "primare"
 and put the following files there:
 
