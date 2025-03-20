@@ -1,66 +1,69 @@
-import socket
 import logging
 from homeassistant.components.number import NumberEntity
-from homeassistant.helpers.update_coordinator import CoordinatorEntity, DataUpdateCoordinator
-from datetime import timedelta
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
 
 _LOGGER = logging.getLogger(__name__)
 
-SP25_IP = "XXX.XXX.XXX.XXX"  """replace with the IP of your SP(A)25"""
-SP25_PORT = 50006
-END_CHARACTER = "\r\n"
+async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities):
+    coordinator = hass.data["primare"]["coordinator"]
+    async_add_entities([PrimareVolumeControl(coordinator, config_entry.data["device_name"])])
 
-def send_command(command):
-    """Sends command to SP(A)25 and returns the answer."""
-    try:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.connect((SP25_IP, SP25_PORT))
-            s.sendall((command + END_CHARACTER).encode("ascii"))
-            response = s.recv(1024).decode("ascii").strip()
-            return response
-    except Exception as e:
-        _LOGGER.error(f"Fehler beim Senden des Befehls: {e}")
-        return None
+class PrimareVolumeControl(NumberEntity):
+    def __init__(self, coordinator, device_name: str):
+        """Initialisiert den Volume-Slider und speichert den Coordinator."""
+        self._coordinator = coordinator
+        self._device_name = device_name
+        self._unique_id = f"primare_{device_name.lower().replace(' ', '_')}_volume_control"
+        self._remove_listener = None
 
-def get_current_volume():
-    """Checks the current volume."""
-    response = send_command("!1vol.?")
-    if response and response.startswith("!1vol."):
-        return int(response.split(".")[1])
-    return None
+    async def async_added_to_hass(self) -> None:
+        """Registriert den Listener, damit die Entität aktualisiert wird, sobald der Coordinator neue Daten hat."""
+        self._remove_listener = self._coordinator.async_add_listener(self.async_write_ha_state)
 
-def setup_platform(hass, config, add_entities, discovery_info=None):
-    """Sets the Number entity in Home Assistant."""
-    coordinator = DataUpdateCoordinator(
-        hass,
-        _LOGGER,
-        name="sp25_volume",
-        update_method=async_update_data,
-        update_interval=timedelta(seconds=5),
-    )
-    add_entities([SP25VolumeSlider(coordinator)])
-    coordinator.async_config_entry_first_refresh()
+    async def async_will_remove_from_hass(self) -> None:
+        """Entfernt den Listener beim Entfernen der Entität."""
+        if self._remove_listener:
+            self._remove_listener()
 
-async def async_update_data():
-    """Retrieve the current volume."""
-    return {"volume": get_current_volume()}
-
-class SP25VolumeSlider(CoordinatorEntity, NumberEntity):
-    """Volume control for SP(A)25"""
-
-    def __init__(self, coordinator):
-        super().__init__(coordinator)
-        self._attr_unique_id = "sp25_volume_slider"
-        self._attr_name = "SP25 Volume"
-        self._attr_icon = "mdi:volume-high"
-        self._attr_native_min_value = 1
-        self._attr_native_max_value = 99
-        self._attr_native_step = 1
-    
     @property
-    def native_value(self):
-        return self.coordinator.data.get("volume")
+    def name(self) -> str:
+        return f"{self._device_name} Volume"
 
-    def set_native_value(self, value):
-        send_command(f"!1vol.{int(value)}")
-        self.coordinator.async_request_refresh()
+    @property
+    def unique_id(self) -> str:
+        return self._unique_id
+
+    @property
+    def native_min_value(self) -> float:
+        return 0
+
+    @property
+    def native_max_value(self) -> float:
+        return 100
+
+    @property
+    def native_step(self) -> float:
+        return 1
+
+    @property
+    def mode(self) -> str:
+        return "slider"
+
+    @property
+    def native_value(self) -> float:
+        # Wenn noch kein Wert vorhanden ist, wird 0 zurückgegeben.
+        value = self._coordinator.data.get("volume")
+        return value if value is not None else 0
+        
+    @property
+    def icon(self) -> str:
+        # Verwende ein Standard-MDI-Icon:
+        return "mdi:volume-high"
+        # Alternativ, wenn du ein eigenes Icon liefern möchtest:
+        # Stelle sicher, dass du dein Icon z.B. in /config/www/primare/my_volume_icon.png abgelegt hast
+        # return "/local/primare/my_volume_icon.png"        
+
+    async def async_set_value(self, value: float) -> None:
+        command = f"!1vol.{int(value)}"
+        await self._coordinator.async_send_command(command)
