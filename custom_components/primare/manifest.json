@@ -3,8 +3,8 @@
    "name":"Primare",
    "version":"1.0",
    "documentation":"https://github.com/Sulzburg/primare/blob/main/README.md",
-   "dependencies":[],
+   "dependencies": ["number", "switch", "select"],
    "codeowners":["GuidoL","ChatGPT"],
    "requirements":[],
-   "iot_class":"local_polling" 
+   "config_flow": true   
 }
