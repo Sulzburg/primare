@@ -25,7 +25,7 @@ Unofficial HA Custom_Integration for Primare.
 1. Restart Home Assistant.
 1. Just go to `Configuration` -> `Integrations` -> `Add Integration` and search for `Primare`.
 1. You will be asked for the <B>fixed IP address</B> of your Primare device.
-1. You will be asked for the name of your Primare device ('name' is part of the entity-ID like `switch.'name'_power`, `number.'name'_volume`)
+1. You will be asked for a name of your Primare device ('name' is part of the entity-ID like `switch.'name'_power`, `number.'name'_volume`)
 1. Hit OK
 
 That's it.
