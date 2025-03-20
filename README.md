@@ -4,7 +4,7 @@
 <img src="https://github.com/Sulzburg/primare/blob/3ad5e096263f1d63c12c37868fba4761c4a53cab/img/icon.png" alt ="Primare Logo" Title="Primare" height="100"/>
 
 Unofficial HA Custom Integration for Primare devices.
-<BR>Works only with SP25 & SPA25
+<BR>Works only with SP25 & SPA25.
 <hr>
 
 
@@ -29,7 +29,7 @@ Unofficial HA Custom Integration for Primare devices.
 1. Restart Home Assistant.
 1. Just go to `Configuration` -> `Integrations` -> `Add Integration` and search for `Primare`.
 1. You will be asked for the <B>fixed IP address</B> of your Primare device.
-1. You will be asked for a name of your Primare device ('name' is part of the entity-ID like `switch.'name'_power`, `number.'name'_volume`)
-1. Hit OK
+1. You will be asked for a name of your Primare device ('name' is part of the entity-ID like `switch.'name'_power`, `number.'name'_volume`).
+1. Hit OK.
 
 That's it.
