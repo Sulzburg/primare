@@ -1,51 +1,31 @@
 # Primare
 
-HA Custom_Integration for Primare SP(A)25 Prisma
+Unofficial HA Custom_Integration for Primare.
+<BR>Works only with SP25 & SPA25
 <hr>
-<B> You get 5 entities:</B>
+
+
+<B> 5 Entities:</B>
+
 
 - Volume
-
 - Power on/off
-
 - Mute on/off 
-
 - Input select
-
 - DSP Select
+<img src="https://github.com/Sulzburg/brands/blob/43292c5004a6647798bf8e3833e48b6e8fa22471/Primare_entities.jpg" alt="Primare entities" title="Primare" height="200" />
+ 
 
 <hr>
-<B>Installation</B>
 
-go to custom_integrations, create a folder named "primare"
-and put the following files there:
+# Manual Installation
 
-`__init__.py`
+1. Navigate to the [Primare](https://github.com/Sulzburg/primare/tree/main/custom_components/primare) directory.
+1. Copy the `primare` folder (including all 8 files) to your Home Assistant `config/custom_components/` directory.
+1. Restart Home Assistant.
+1. Just go to `Configuration` -> `Integrations` -> `Add Integration` and search for `Primare`.
+1. You will be asked for the <B>fixed IP address</B> of your Primare device.
+1. You will be asked for the name of your Primare device ('name' is part of the entity-ID like `switch.'name'_power`, `number.'name'_volume`)
+1. Hit OK
 
-const.py
-
-manifest.json
-
-number.py
-
-select.py
-
-switch.py
-
-
-in *number.py*, *select.py* and *switch.py* replace the IP with the IP of your Primare SP25 Prisma or SPA25 Prisma.
-(SPA25_IP = "xxx.xxx.xxx.xxx" """ enter the IP of your primare device here""")
-
-in configuration.yaml put the following:
-```
-switch:
-  - platform: primare
-
-select:
-  - platform: primare
-
-number:   
-  - platform: primare
-```
-<hr>
-Save everything and restart HA
+That's it.
