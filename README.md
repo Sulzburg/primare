@@ -11,9 +11,10 @@ Unofficial HA Custom_Integration for some Primare devices.
 <B> 5 Entities:</B>
 
 
-- Volume
+
 - Power on/off
 - Mute on/off 
+- Volume
 - Input select
 - DSP Select
 <img src="https://github.com/Sulzburg/primare/blob/41f4845a108f92d3ddab8491c9cc0bf742541554/img/Primare_entities.jpg" alt="Primare entities" title="Primare" height="250" />
