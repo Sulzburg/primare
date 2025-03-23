@@ -31,5 +31,11 @@ Unofficial HA Custom Integration for Primare devices.
 1. You will be asked for the <B>fixed IP address</B> of your Primare device.
 1. You will be asked for a name of your Primare device ('name' is part of the entity-ID like `switch.'name'_power`, `number.'name'_volume`).
 1. Hit OK.
+1. You will find 5 entities:
+ - switch.`name`_power
+ - switch.`name`_mute
+ - number.`name`_volume
+ - slect.`name`_input
+ - select.`name`_dsp_mode.
 
 That's it.
