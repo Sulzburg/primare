@@ -25,7 +25,7 @@ Unofficial HA Custom Integration for Primare devices.
 # Manual Installation
 
 1. Navigate to the [Primare](https://github.com/Sulzburg/primare/tree/main/custom_components/primare) directory.
-1. Copy the `primare` folder (including all 8 files) to your Home Assistant `config/custom_components/` directory or use the [primare.zip](https://github.com/Sulzburg/primare/blob/5918922bf769a04a254f4ffbd496d1db2365e494/primare.zip) file and unpack it to your `custom_components/`folder.
+1. Copy the `primare` folder (including all 8 files) to your Home Assistant `/custom_components/` directory or use the [primare.zip](https://github.com/Sulzburg/primare/blob/5918922bf769a04a254f4ffbd496d1db2365e494/primare.zip) file and unpack it to your `custom_components/`folder.
 1. Restart Home Assistant.
 1. Just go to `Configuration` -> `Integrations` -> `Add Integration` and search for `Primare`.
 1. You will be asked for the <B>fixed IP address</B> of your Primare device.
