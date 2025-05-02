@@ -1,26 +1,46 @@
 # custom_components/primare/const.py
-INPUT_MAP = {
-    1: "Preset 1",
-    2: "Preset 2",
-    3: "Preset 3",
-    4: "Preset 4",
-    5: "Preset 5",
-    6: "Preset 6",
-    7: "Preset 7",
-    8: "Preset 8",
-    9: "Preset 9",
-    10: "Preset 10",
-    11: "Preset 11",
-    12: "Preset 12",
-    13: "Preset 13",
-    14: "Preset 14",
-    15: "Preset 15",
-    16: "Preset 16",
-    17: "Prisma"
+
+DOMAIN = "primare"
+
+# Eingangsliste je Gerätetyp
+INPUT_MAPS = {
+    "SP25": {
+        1: "Preset1",
+        2: "Preset2",
+        3: "Preset3",
+        4: "Preset4",
+        5: "Preset5",
+        6: "Preset6",
+        7: "Preset7",
+        8: "Preset8",
+        9: "Preset9",
+        10: "Preset10",
+        11: "Preset11",
+        12: "Preset12",
+        13: "Preset13",
+        14: "Preset14",
+        15: "Preset15",
+        16: "Preset16",
+        17: "Prisma"
+    },
+    "Pre35": {
+        1: "A1",
+        2: "A2",
+        3: "A3",
+        4: "A4",
+        5: "A5",
+        6: "D6",
+        7: "D7",
+        8: "D8",
+        9: "D9",
+        10: "D10",
+        11: "D11",
+        12: "PC/MAC",
+        13: "Prisma"
+    }
 }
 
-INPUT_MAP_INV = {v: k for k, v in INPUT_MAP.items()}
-
+# DSP-Modi (nur bei SP25 genutzt)
 DSP_MAP = {
     1: "Auto",
     2: "Bypass",
@@ -34,3 +54,7 @@ DSP_MAP = {
 }
 
 DSP_MAP_INV = {v: k for k, v in DSP_MAP.items()}
+
+# Diese beiden werden dynamisch beim Setup gesetzt:
+INPUT_MAP = {}
+INPUT_MAP_INV = {}
