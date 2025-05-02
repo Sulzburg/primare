@@ -5,10 +5,12 @@ _LOGGER = logging.getLogger(__name__)
 DEFAULT_PORT = 50006
 
 class PrimareDataCoordinator:
-    def __init__(self, ip_address: str, device_name: str, loop):
+    def __init__(self, ip_address: str, device_name: str, loop, hass, entry_id):
         self._ip_address = ip_address
         self._device_name = device_name
         self._loop = loop
+        self._hass = hass
+        self._entry_id = entry_id
         self._listeners = []
         self.data = {
             "volume": None,
@@ -36,7 +38,6 @@ class PrimareDataCoordinator:
             _LOGGER.error("Verbindungsaufbau fehlgeschlagen: %s", e)
             return
 
-        # Initiale Abfrage aller Sensoren
         for cmd in ["!1pow.?", "!1mut.?", "!1inp.?", "!1sur.?", "!1vol.?"]:
             _LOGGER.debug("Initiale Abfrage: Sende %s", cmd)
             await self.async_send_command(cmd)
@@ -47,7 +48,6 @@ class PrimareDataCoordinator:
             except asyncio.TimeoutError:
                 _LOGGER.debug("Keine Antwort bei initialer Abfrage für %s", cmd)
 
-        # Starte den Listener für automatische Updates
         self._listen_task = self._loop.create_task(self._listen())
 
     async def async_stop(self):
@@ -85,44 +85,6 @@ class PrimareDataCoordinator:
                 await asyncio.sleep(1)
 
     def _process_response(self, response: str):
-        # Parsing der Antworten, wie zuvor implementiert
-        # Aktualisiere self.data entsprechend und informiere Listener
-        parts = response.split("!1")
-        for part in parts:
-            if not part:
-                continue
-            msg = "!1" + part.strip()
-            _LOGGER.debug("Verarbeite Nachricht: %s", msg)
-            if msg.startswith("!1vol."):
-                try:
-                    vol_val = int(msg[len("!1vol."):].strip())
-                    self.data["volume"] = vol_val
-                    _LOGGER.debug("Volume aktualisiert: %s", vol_val)
-                except ValueError:
-                    _LOGGER.error("Fehler beim Parsen von Volume: %s", msg)
-            elif msg.startswith("!1pow."):
-                pow_str = msg[len("!1pow."):].strip()
-                if pow_str.startswith("1"):
-                    self.data["power"] = 1
-                elif pow_str.startswith("0"):
-                    self.data["power"] = 0
-                else:
-                    _LOGGER.error("Fehler beim Parsen von Power: %s", msg)
-            elif msg.startswith("!1mut."):
-                mut_str = msg[len("!1mut."):].strip()
-                if mut_str.startswith("0") or mut_str.startswith("1"):
-                    self.data["mute"] = int(mut_str[0])
-                else:
-                    _LOGGER.error("Unbekannter Mute-Wert in: %s", msg)
-            # Hier kommen die Parser für Input und DSP wie gehabt…
-            # ...
-
-        for callback in self._listeners:
-            callback()
-            
-    def _process_response(self, response: str):
-        # Parsing der Antworten, wie zuvor implementiert
-        # Aktualisiere self.data entsprechend und informiere Listener
         parts = response.split("!1")
         for part in parts:
             if not part:
@@ -153,9 +115,9 @@ class PrimareDataCoordinator:
             elif msg.startswith("!1inp."):
                 try:
                     inp_val = int(msg[len("!1inp."):].strip())
-                    # Hier wird das Mapping angewendet – passe das an, falls nötig
-                    from .const import INPUT_MAP  # oder halte die Mappings im Coordinator
-                    self.data["input"] = INPUT_MAP.get(inp_val, inp_val)
+                    entry_data = self._hass.data.get("primare", {}).get(self._entry_id, {})
+                    input_map = entry_data.get("input_map", {})
+                    self.data["input"] = input_map.get(inp_val, inp_val)
                     _LOGGER.debug("Input aktualisiert: %s", self.data["input"])
                 except ValueError:
                     _LOGGER.error("Fehler beim Parsen von Input: %s", msg)
@@ -169,4 +131,4 @@ class PrimareDataCoordinator:
                     _LOGGER.error("Fehler beim Parsen von DSP: %s", msg)
 
         for callback in self._listeners:
-            callback()            
+            callback()
