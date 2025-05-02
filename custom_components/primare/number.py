@@ -6,8 +6,14 @@ from homeassistant.core import HomeAssistant
 _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities):
-    coordinator = hass.data["primare"]["coordinator"]
-    async_add_entities([PrimareVolumeControl(coordinator, config_entry.data["device_name"])])
+    entry_data = hass.data["primare"].get(config_entry.entry_id)
+    if not entry_data:
+        raise RuntimeError(f"Kein Eintrag für {config_entry.entry_id} gefunden")
+
+    coordinator = entry_data["coordinator"]
+    device_name = entry_data["device_name"]
+
+    async_add_entities([PrimareVolumeControl(coordinator, device_name)])
 
 class PrimareVolumeControl(NumberEntity):
     def __init__(self, coordinator, device_name: str):
@@ -55,14 +61,10 @@ class PrimareVolumeControl(NumberEntity):
         # Wenn noch kein Wert vorhanden ist, wird 0 zurückgegeben.
         value = self._coordinator.data.get("volume")
         return value if value is not None else 0
-        
+
     @property
     def icon(self) -> str:
-        # Verwende ein Standard-MDI-Icon:
         return "mdi:volume-high"
-        # Alternativ, wenn du ein eigenes Icon liefern möchtest:
-        # Stelle sicher, dass du dein Icon z.B. in /config/www/primare/my_volume_icon.png abgelegt hast
-        # return "/local/primare/my_volume_icon.png"        
 
     async def async_set_value(self, value: float) -> None:
         command = f"!1vol.{int(value)}"
