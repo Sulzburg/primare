@@ -6,10 +6,16 @@ from homeassistant.core import HomeAssistant
 _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities):
-    coordinator = hass.data["primare"]["coordinator"]
+    entry_data = hass.data["primare"].get(config_entry.entry_id)
+    if not entry_data:
+        raise RuntimeError(f"Kein Eintrag für {config_entry.entry_id} gefunden")
+
+    coordinator = entry_data["coordinator"]
+    device_name = entry_data["device_name"]
+
     async_add_entities([
-        PrimareMuteSwitch(coordinator, config_entry.data["device_name"]),
-        PrimarePowerSwitch(coordinator, config_entry.data["device_name"]),
+        PrimareMuteSwitch(coordinator, device_name),
+        PrimarePowerSwitch(coordinator, device_name),
     ])
 
 class PrimareMuteSwitch(SwitchEntity):
@@ -21,11 +27,9 @@ class PrimareMuteSwitch(SwitchEntity):
         self._remove_listener = None
 
     async def async_added_to_hass(self) -> None:
-        """Registriere den Listener, damit der Schalter bei Statusänderungen aktualisiert wird."""
         self._remove_listener = self._coordinator.async_add_listener(self.async_write_ha_state)
 
     async def async_will_remove_from_hass(self) -> None:
-        """Entferne den Listener, wenn die Entität aus Home Assistant entfernt wird."""
         if self._remove_listener:
             self._remove_listener()
 
@@ -36,14 +40,10 @@ class PrimareMuteSwitch(SwitchEntity):
     @property
     def is_on(self):
         return self._coordinator.data.get("mute") == 1
-        
+
     @property
     def icon(self) -> str:
-        # Verwende ein Standard-MDI-Icon:
         return "mdi:volume-off"
-        # Alternativ, wenn du ein eigenes Icon liefern möchtest:
-        # Stelle sicher, dass du dein Icon z.B. in /config/www/primare/my_volume_icon.png abgelegt hast
-        # return "/local/primare/my_volume_icon.png"        
 
     async def async_turn_on(self, **kwargs):
         await self._coordinator.async_send_command("!1mut.1")
@@ -61,11 +61,9 @@ class PrimarePowerSwitch(SwitchEntity):
         self._remove_listener = None
 
     async def async_added_to_hass(self) -> None:
-        """Registriere den Listener, damit der Schalter bei Statusänderungen aktualisiert wird."""
         self._remove_listener = self._coordinator.async_add_listener(self.async_write_ha_state)
 
     async def async_will_remove_from_hass(self) -> None:
-        """Entferne den Listener, wenn die Entität aus Home Assistant entfernt wird."""
         if self._remove_listener:
             self._remove_listener()
 
@@ -76,14 +74,10 @@ class PrimarePowerSwitch(SwitchEntity):
     @property
     def is_on(self):
         return self._coordinator.data.get("power") == 1
-        
+
     @property
     def icon(self) -> str:
-        # Verwende ein Standard-MDI-Icon:
         return "mdi:power"
-        # Alternativ, wenn du ein eigenes Icon liefern möchtest:
-        # Stelle sicher, dass du dein Icon z.B. in /config/www/primare/my_volume_icon.png abgelegt hast
-        # return "/local/primare/my_volume_icon.png"        
 
     async def async_turn_on(self, **kwargs):
         await self._coordinator.async_send_command("!1pow.1")
