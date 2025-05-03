@@ -15,7 +15,7 @@ async def async_setup(hass: HomeAssistant, config: dict) -> bool:
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
     ip_address = config_entry.data["ip_address"]
     device_name = config_entry.data["device_name"]
-    device_type = config_entry.data.get("device_type", "SP25")  # Default = SP25
+    device_type = config_entry.data.get("device_type", "Multichannel")  # Default = SP25
 
     from . import const
 
