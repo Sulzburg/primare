@@ -4,7 +4,7 @@ DOMAIN = "primare"
 
 # Eingangsliste je Gerätetyp
 INPUT_MAPS = {
-    "SP25": {
+    "Multichannel": {
         1: "Preset1",
         2: "Preset2",
         3: "Preset3",
@@ -23,18 +23,18 @@ INPUT_MAPS = {
         16: "Preset16",
         17: "Prisma"
     },
-    "Pre35": {
-        1: "A1",
-        2: "A2",
-        3: "A3",
-        4: "A4",
-        5: "A5",
-        6: "D6",
-        7: "D7",
-        8: "D8",
-        9: "D9",
-        10: "D10",
-        11: "D11",
+    "Stereo": {
+        1: "Input1",
+        2: "Input2",
+        3: "Input3",
+        4: "Input4",
+        5: "Input5",
+        6: "Input6",
+        7: "Input7",
+        8: "Input8",
+        9: "Input9",
+        10: "Input10",
+        11: "Input11",
         12: "PC/MAC",
         13: "Prisma"
     }
