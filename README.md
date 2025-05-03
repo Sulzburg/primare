@@ -4,9 +4,20 @@
 <img src="https://github.com/Sulzburg/primare/blob/3ad5e096263f1d63c12c37868fba4761c4a53cab/img/icon.png" alt ="Primare Logo" Title="Primare" height="100"/>
 
 Unofficial HA Custom Integration for Primare devices.
-<BR>Works only with SP25 & SPA25.
-<hr>
+<BR>Works only with X5 Serie Models.
 
+
+<B>Multichannel:</B>
+ - SP25
+ - SPA25
+
+<B>Stereo:</B>
+ - I15 Prisma
+ - I25 Prisma
+ - I35 Prisma
+ - SC15 Prisma
+ - Pre35 Prisma
+<hr>
 
 <B> 5 Entities:</B>
 
@@ -16,7 +27,7 @@ Unofficial HA Custom Integration for Primare devices.
 - Mute on/off 
 - Volume
 - Input select
-- DSP Mode Select
+- DSP Mode Select (only Multichannel devices)
 <img src="https://github.com/Sulzburg/primare/blob/41f4845a108f92d3ddab8491c9cc0bf742541554/img/Primare_entities.jpg" alt="Primare entities" title="Primare" height="250" />
  
 
@@ -30,12 +41,29 @@ Unofficial HA Custom Integration for Primare devices.
 1. Just go to `Configuration` -> `Integrations` -> `Add Integration` and search for `Primare`.
 1. You will be asked for the <B>fixed IP address</B> of your Primare device.
 1. You will be asked for a name of your Primare device ('name' is part of the entity-ID like `switch.'name'_power`, `number.'name'_volume`).
+1. Select, it is a Multichannel or a Stereo device.
 1. Hit OK.
-1. You will find the 5 entities:
+1. You will find the following entities:
  - switch.`name`_power
  - switch.`name`_mute
  - number.`name`_volume
  - select.`name`_input
- - select.`name`_dsp_mode.
+ - select.`name`_dsp_mode (Only Multichannel devices).
 
 That's it.
+
+If you want to name the inputs yourself:
+open `custom_components/primare/const.py` with the file editor and replace the names.
+e.g.:
+
+`1: “Preset1”, -> 1: “BluRay”,`
+
+if you want to exclude an entry, place a # in front of the corresponding line.
+e.g.:
+
+`#  7: "SAT/Receiver",`
+
+Hit save.
+
+Restart HA to take effect.
+
