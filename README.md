@@ -29,7 +29,7 @@ Unofficial HA Custom Integration for Primare devices.
 - Input select
 - DSP Mode Select (only Multichannel devices)
   
-<img src="https://github.com/Sulzburg/primare/blob/b0a8f18e2001d32019d3e91c47b31b0269a3d4f7/img/Primare_multichannel_entities.jpg" alt="Primare entities" title="Primare" height="250" width="380" /> <img src="https://github.com/Sulzburg/primare/blob/b05c867286f1b113bce947fe3ea56dcff6d2b2a5/img/Primare_stereo_entities.jpg" alt="Primare entities" title="Primare" height="250" width="380" />
+<img src="https://github.com/Sulzburg/primare/blob/b0a8f18e2001d32019d3e91c47b31b0269a3d4f7/img/Primare_multichannel_entities.jpg" alt="Primare entities" title="Primare" height="250" width="380" /> <img src="https://github.com/Sulzburg/primare/blob/b05c867286f1b113bce947fe3ea56dcff6d2b2a5/img/Primare_stereo_entities.jpg" alt="Primare entities" title="Primare" height="230" width="380" />
  
 
 <hr>
@@ -57,7 +57,7 @@ If you want to rename the inputs:
 open `custom_components/primare/const.py` with the file editor and replace the names.
 e.g.:
 
-`1: “Preset1”, -> 1: “BluRay”,`
+`   1: “Preset1”, -> 1: “BluRay”,`
 
 if you want to exclude an entry, place a # in front of the corresponding line.
 e.g.:
