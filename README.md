@@ -55,7 +55,7 @@ That's it.
 
 <hr>
 
-# Hints
+<B>Hints:</B>
 
 If you want to rename the inputs:
 open `custom_components/primare/const.py` with the file editor and replace the names.
