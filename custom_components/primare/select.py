@@ -20,7 +20,7 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, asyn
 
     entities = [PrimareInputSelect(coordinator, device_name, input_map, input_map_inv)]
 
-    if device_type == "SP25":
+    if device_type == "Multichannel":
         entities.append(PrimareDSPSelect(coordinator, device_name))
 
     async_add_entities(entities)
