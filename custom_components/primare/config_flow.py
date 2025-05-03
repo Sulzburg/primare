@@ -4,8 +4,8 @@ from homeassistant import config_entries
 DOMAIN = "primare"
 
 DEVICE_TYPE_OPTIONS = {
-    "SP25": "Multichannel",
-    "Pre35": "Stereo"
+    "Multichannel": "Multichannel",
+    "Stereo": "Stereo"
 }
 
 class PrimareConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -18,6 +18,6 @@ class PrimareConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         data_schema = vol.Schema({
             vol.Required("ip_address"): str,
             vol.Required("device_name"): str,
-            vol.Required("device_type", default="SP25"): vol.In(DEVICE_TYPE_OPTIONS),
+            vol.Required("device_type", default="Multichannel"): vol.In(DEVICE_TYPE_OPTIONS),
         })
         return self.async_show_form(step_id="user", data_schema=data_schema, errors=errors)
