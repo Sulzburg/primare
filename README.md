@@ -57,7 +57,7 @@ If you want to rename the inputs:
 open `custom_components/primare/const.py` with the file editor and replace the names.
 e.g.:
 
-`   1: “Preset1”, -> 1: “BluRay”,`
+`   1: “Preset1”,   ->   1: “BluRay”,`
 
 if you want to exclude an entry, place a # in front of the corresponding line.
 e.g.:
