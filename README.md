@@ -48,7 +48,7 @@ Unofficial HA Custom Integration for Primare devices.
  - switch.`name`_mute
  - number.`name`_volume
  - select.`name`_input
- - select.`name`_dsp_mode (Only Multichannel devices).
+ - select.`name`_dsp_mode.
 
 That's it.
 
