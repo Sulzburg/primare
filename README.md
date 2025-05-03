@@ -29,7 +29,7 @@ Unofficial HA Custom Integration for Primare devices.
 - Input select
 - DSP Mode Select (only Multichannel devices)
   
-<img src="https://github.com/Sulzburg/primare/blob/41f4845a108f92d3ddab8491c9cc0bf742541554/img/Primare_entities.jpg" alt="Primare entities" title="Primare" height="250" /> <img src="img/Primare_stereo_entities.jpg" alt="Primare entities" title="Primare" height="250" />
+<img src="https://github.com/Sulzburg/primare/blob/41f4845a108f92d3ddab8491c9cc0bf742541554/img/Primare_entities.jpg" alt="Primare entities" title="Primare" height="250" /> <img src="https://github.com/Sulzburg/primare/blob/b05c867286f1b113bce947fe3ea56dcff6d2b2a5/img/Primare_stereo_entities.jpg" alt="Primare entities" title="Primare" height="250" />
  
 
 <hr>
