@@ -42,7 +42,7 @@ Unofficial HA Custom Integration for Primare devices.
 1. Just go to `Configuration` -> `Integrations` -> `Add Integration` and search for `Primare`.
 1. You will be asked for the <B>fixed IP address</B> of your Primare device.
 1. You will be asked for a name of your Primare device ('name' is part of the entity-ID like `switch.'name'_power`, `number.'name'_volume`).
-1. Select, it is a Multichannel or a Stereo device.
+1. Select Multichannel or Stereo device.
 1. Hit OK.
 1. You will find the following entities:
  - switch.`name`_power
