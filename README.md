@@ -11,7 +11,7 @@ Unofficial HA Custom Integration for Primare devices.
  - SP25
  - SPA25
 
-<B>Stereo:</B>
+<B>Stereo(comming soon):</B>
  - I15 Prisma
  - I25 Prisma
  - I35 Prisma
