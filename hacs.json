@@ -4,6 +4,6 @@
   "documentation": "https://github.com/Sulzburg/primare/blob/main/README.md",
   "codeowners": ["@GuidoL"],
   "config_flow": true,
-  "requirements": [],
-  "version": "1.0.0"
+  "version": "1.0.0",
+  "requirements": []
 }
