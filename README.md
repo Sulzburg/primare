@@ -20,6 +20,7 @@ Unofficial HA Custom Integration for Primare devices.
 
 <B>Streamer:</B>
  - NP5
+ - NP5 MKII
  
 <hr>
 
