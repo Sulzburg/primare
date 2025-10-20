@@ -17,6 +17,10 @@ Unofficial HA Custom Integration for Primare devices.
  - I35 Prisma
  - SC15 Prisma
  - Pre35 Prisma
+
+<B>Streamer:</B>
+ - NP5
+ 
 <hr>
 
 <B> 5 Entities:</B>
