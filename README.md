@@ -42,11 +42,11 @@ Unofficial HA Custom Integration for Primare devices.
 # Manual Installation
 
 1. Navigate to the [Primare](https://github.com/Sulzburg/primare/tree/main/custom_components/primare) directory.
-1. Copy the `primare` folder (including all 8 files) to your Home Assistant `/custom_components/` directory or use the [primare.zip](https://github.com/Sulzburg/primare/blob/5918922bf769a04a254f4ffbd496d1db2365e494/primare.zip) file and unpack it to your `custom_components/`folder. If custom_components does not exist, create it.
+1. Copy the entire lowercase `primare` folder into your Home Assistant `/config/custom_components/` directory. You can also download the [current source ZIP](https://github.com/Sulzburg/primare/archive/refs/heads/main.zip) and copy `custom_components/primare` from the extracted archive. Create `custom_components` if needed.
 1. Restart Home Assistant.
 1. Just go to `Configuration` -> `Integrations` -> `Add Integration` and search for `Primare`.
-1. You will be asked for the <B>fixed IP address</B> of your Primare device.
-1. You will be asked for a name of your Primare device ('name' is part of the entity-ID like `switch.'name'_power`, `number.'name'_volume`).
+1. You will be asked for the <B>fixed IP address or hostname</B> of your Primare device.
+1. Choose a display name. Home Assistant uses it to suggest entity IDs such as `switch.living_room_power` and `number.living_room_volume`.
 1. Select Multichannel or Stereo device.
 1. Hit OK.
 1. You will find the following entities:
@@ -54,9 +54,11 @@ Unofficial HA Custom Integration for Primare devices.
  - switch.`name`_mute
  - number.`name`_volume
  - select.`name`_input
- - select.`name`_dsp_mode.
+ - select.`name`_dsp_mode (Multichannel only).
 
-That's it.
+Controls show unavailable until the device reports their values. If the device is offline, the integration reconnects automatically. An unconfirmed control command is reported as an error and is not sent again.
+
+The old `v0.0.1` release predates the current integration layout. Use the current source for manual installation until a new release is published.
 
 <hr>
 
