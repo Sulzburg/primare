@@ -2,6 +2,7 @@
 
 import asyncio
 import importlib.util
+import json
 from pathlib import Path
 import struct
 import sys
@@ -23,6 +24,7 @@ class LuciTest(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.state = b"0\0"
         self.push = None
+        self.play_view = {"TrackName": "Track"}
         self.position_reply = frame(luci.POSITION, b"1000")
         self.state_status = 1
         self.command_reply = frame(luci.TRANSPORT)
@@ -59,7 +61,7 @@ class LuciTest(unittest.IsolatedAsyncioTestCase):
                     if self.push is not None:
                         response = frame(luci.POSITION, self.push, status=0) + response
                 elif box == luci.PLAY_VIEW:
-                    response = frame(box, b'{"Window CONTENTS":{"TrackName":"Track"}}')
+                    response = frame(box, json.dumps({"Window CONTENTS": self.play_view}).encode())
                 elif box == luci.POSITION:
                     response = self.position_reply
                 elif box == luci.TRANSPORT:
@@ -102,6 +104,47 @@ class LuciTest(unittest.IsolatedAsyncioTestCase):
         self.push = b"-1000\n"
         self.assertIsNone((await self.client.async_read()).position)
         self.assertFalse(any(box == luci.POSITION for _, box, _ in self.requests))
+
+    async def test_paused_read_retains_position_push_over_stale_play_view(self):
+        self.state = b"2"
+        self.push = b"30000"
+        self.assertEqual((await self.client.async_read()).position, 30)
+        self.push = None
+        self.play_view["Current_time"] = 0
+        self.assertEqual((await self.client.async_read()).position, 30)
+        self.assertFalse(any(box == luci.POSITION for _, box, _ in self.requests))
+
+    async def test_playing_read_uses_play_view_over_old_position_push(self):
+        self.push = b"30000"
+        self.assertEqual((await self.client.async_read()).position, 30)
+        self.push = None
+        self.play_view["Current_time"] = 31000
+        self.assertEqual((await self.client.async_read()).position, 31)
+
+    async def test_track_notification_invalidates_paused_position(self):
+        self.state = b"2"
+        self.push = b"30000"
+        self.assertEqual((await self.client.async_read()).position, 30)
+        self.push = None
+        self.play_view["Current_time"] = 0
+        self.position_reply = frame(luci.POSITION, b"0")
+        # A repeated track can have the same title and still start over.
+        view = json.dumps({"Window CONTENTS": self.play_view}).encode()
+        self.writer.write(frame(luci.PLAY_VIEW, view, 0))
+        await self.writer.drain()
+        self.assertEqual((await self.client.async_read()).position, 0)
+
+    async def test_mirrored_play_view_does_not_discard_new_position(self):
+        self.state = b"2"
+        await self.client.async_read()
+        view = b'{"Window CONTENTS":{"TrackName":"Track","Current_time":0}}'
+        self.writer.write(
+            frame(luci.PLAY_VIEW, view, 0)
+            + frame(luci.POSITION, b"2000", 0)
+            + frame(luci.PLAY_VIEW_PUSH, view, 0)
+        )
+        await self.writer.drain()
+        self.assertEqual((await self.client.async_read()).position, 2)
 
     async def test_refused_position_is_not_queried_again_on_this_session(self):
         self.position_reply = frame(luci.POSITION, status=2)

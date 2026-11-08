@@ -24,7 +24,6 @@ ACK_TIMEOUT = 0.5
 ACK_GRACE = 3
 PUSH_SETTLE = 0.15
 TRACK_GAP = 2.0
-POSITION_PUSH_MAX_AGE = 3.0
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -145,7 +144,9 @@ class LuciPlaybackClient:
         self._state: int | None = None
         self._metadata: Playback | None = None
         self._position: float | None = None
-        self._last_position_push: float | None = None
+        self._pushed_position: float | None = None
+        self._pushed_position_at: float | None = None
+        self._last_view_push: tuple[int, bytes, float] | None = None
         self._position_query_supported = True
         self._last_snapshot: Playback | None = None
         self._publish_handle: asyncio.TimerHandle | None = None
@@ -181,7 +182,8 @@ class LuciPlaybackClient:
         task, self._reader_task = self._reader_task, None
         writer, self._writer = self._writer, None
         self._state = self._metadata = self._position = self._last_snapshot = None
-        self._last_position_push = None
+        self._clear_position_push()
+        self._last_view_push = None
         self._transport_ack_deadline = None
         self._position_query_supported = True
         if writer is not None:
@@ -302,16 +304,23 @@ class LuciPlaybackClient:
         elif box in (PLAY_VIEW, PLAY_VIEW_PUSH):
             # PlayView's state can be stale after a Spotify pause. Use 0x33.
             metadata = _playback(payload, 0)
-            if self._metadata is not None and self._track(metadata) != self._track(self._metadata):
-                self._position = metadata.position
-                self._last_position_push = None
-            elif self._position is None and self._last_position_push is None:
+            track_changed = self._metadata is not None and self._track(metadata) != self._track(self._metadata)
+            if pushed:
+                now = asyncio.get_running_loop().time()
+                last = self._last_view_push
+                if last is not None and box != last[0] and payload == last[1] and now - last[2] <= PUSH_SETTLE:
+                    # The NP5 can mirror the same PlayView on both boxes.
+                    return
+                self._last_view_push = box, payload, now
+            if pushed or track_changed:
+                self._clear_position_push()
                 self._position = metadata.position
             self._metadata = metadata
         elif box == POSITION:
             self._position = _position(payload)
             if pushed:
-                self._last_position_push = asyncio.get_running_loop().time()
+                self._pushed_position = self._position
+                self._pushed_position_at = asyncio.get_running_loop().time()
         elif box == SPEAKER:
             # Do not let an inactive event override a confirmed pause or play.
             if self._pending_state == 1 and _ascii(payload).startswith("SPEAKER_INACTIVE,"):
@@ -320,6 +329,29 @@ class LuciPlaybackClient:
         else:
             return
         self._schedule_publish()
+
+    def _clear_position_push(self) -> None:
+        self._pushed_position = self._pushed_position_at = None
+
+    def _has_usable_position_push(self, read_started: float) -> bool:
+        return self._pushed_position_at is not None and (
+            self._state == 2
+            or (self._state == 0 and self._pushed_position_at >= read_started)
+        )
+
+    async def _refresh_position(self, read_started: float) -> None:
+        if not self._has_usable_position_push(read_started):
+            self._position = self._metadata.position if self._metadata else None
+            if self._position_query_supported and (
+                self._pushed_position_at is None or self._position is None
+            ):
+                try:
+                    await self._request(1, POSITION, timeout=1)
+                except (LuciRefused, TimeoutError):
+                    # A late reply could be mistaken for another position query.
+                    self._position_query_supported = False
+        if self._has_usable_position_push(read_started):
+            self._position = self._pushed_position
 
     @staticmethod
     def _track(playback: Playback) -> tuple:
@@ -360,7 +392,8 @@ class LuciPlaybackClient:
     def _set_state(self, state: int) -> None:
         if state == 1 and self._state != 1:
             self._metadata = self._position = None
-            self._last_position_push = None
+            self._clear_position_push()
+            self._last_view_push = None
         if state not in (0, 1, 2, 5) and self._state != state:
             _LOGGER.debug("Unmapped LUCI playback state: %s", state)
         self._state = state
@@ -395,6 +428,7 @@ class LuciPlaybackClient:
     async def async_read(self) -> Playback:
         """Seed the initial state and periodically check a quiet session."""
         async with self._lock:
+            read_started = asyncio.get_running_loop().time()
             self._syncing = True
             self._cancel_publish()
             try:
@@ -402,17 +436,7 @@ class LuciPlaybackClient:
                 await self._request(1, PLAY_STATE)
                 if self._pending_state is None and self._state in (0, 2, 5):
                     await self._request(1, PLAY_VIEW)
-                    if self._position_query_supported and (
-                        self._last_position_push is None
-                        or asyncio.get_running_loop().time() - self._last_position_push
-                        > POSITION_PUSH_MAX_AGE
-                    ):
-                        try:
-                            await self._request(1, POSITION, timeout=1)
-                        except (LuciRefused, TimeoutError):
-                            # Never match a late position reply to another request.
-                            # Position notifications still work for this session.
-                            self._position_query_supported = False
+                    await self._refresh_position(read_started)
                 snapshot = self._snapshot()
                 if snapshot is None:
                     raise ConnectionError("LUCI connection closed while reading playback")
@@ -444,6 +468,8 @@ class LuciPlaybackClient:
                         await self._disconnect()
                     self._transport_ack_deadline = None
                 await self._connect()
+                if command == "SEEK":
+                    self._clear_position_push()
                 try:
                     await self._request(
                         2, TRANSPORT, payload.encode("ascii"), timeout=ACK_TIMEOUT
