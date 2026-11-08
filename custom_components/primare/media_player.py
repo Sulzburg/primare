@@ -23,11 +23,7 @@ from homeassistant.helpers.update_coordinator import (
 from homeassistant.util import dt as dt_util
 
 from .const import CONF_PLAYBACK_STATUS, DOMAIN
-from .luci import (
-    POSITION_TOLERANCE,
-    LuciPlaybackClient,
-    Playback,
-)
+from .luci import LuciPlaybackClient, Playback
 
 _LOGGER = logging.getLogger(__name__)
 RESYNC_INTERVAL = timedelta(seconds=60)
@@ -192,7 +188,6 @@ class PrimarePlayback(CoordinatorEntity, MediaPlayerEntity):
     @callback
     def _apply_snapshot(self):
         now = dt_util.utcnow()
-        previous_state = self._attr_state
         power_off = self._controls.data.get("power") == 0
         playback = self.coordinator.data if self.coordinator.last_update_success else None
         self._attr_state = MediaPlayerState.OFF if power_off else (
@@ -222,24 +217,17 @@ class PrimarePlayback(CoordinatorEntity, MediaPlayerEntity):
             if playback else {}
         )
         self._attr_supported_features = self._features(playback)
-        self._update_position(playback, previous_state, now)
+        self._update_position(playback, now)
 
-    def _update_position(self, playback, previous_state, now):
+    def _update_position(self, playback, now):
         track = playback.track if playback else None
         position = playback.position if playback else None
-        unchanged_track_and_state = track == self._track and self._attr_state == previous_state
-        if unchanged_track_and_state:
-            if position is None and self._attr_state == MediaPlayerState.PAUSED:
-                # A paused streamer need not push a position on every poll.
-                return
-            if position is not None and self._attr_media_position is not None:
-                expected = self._attr_media_position
-                if self._attr_state == MediaPlayerState.PLAYING:
-                    expected += (now - self._attr_media_position_updated_at).total_seconds()
-                    if abs(position - expected) <= POSITION_TOLERANCE:
-                        return
-                elif position == expected:
-                    return
+        # While playing, a seek back to the previous numeric position still needs a new timestamp.
+        if track == self._track and self._attr_state != MediaPlayerState.PLAYING and (
+            position == self._attr_media_position
+            or (position is None and self._attr_state == MediaPlayerState.PAUSED)
+        ):
+            return
         self._track = track
         self._attr_media_position = position
         self._attr_media_position_updated_at = now if position is not None else None
