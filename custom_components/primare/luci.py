@@ -25,19 +25,12 @@ PUSH_SETTLE = 0.15
 POSITION_TOLERANCE = 1.5
 TRACK_GAP = 2.0
 STATE_KEEP_SECONDS = 10
-PUSH_WATCHDOG = True
-PUSH_SILENCE_LIMIT = 5
-STALE_RECONNECT_DELAY = 10
 _BUFFERING_STATES = (3, 4, 5)
 _LOGGER = logging.getLogger(__name__)
 
 
 class LuciRefused(ValueError):
     """A matching LUCI reply explicitly rejected the request."""
-
-
-class LuciSessionStale(ConnectionError):
-    """The registered session stopped delivering playback position updates."""
 
 
 @dataclass(frozen=True)
@@ -160,9 +153,6 @@ class LuciPlaybackClient:
         self._pushed_position: float | None = None
         self._pushed_position_at: float | None = None
         self._last_view_push: tuple[int, bytes, float] | None = None
-        self._position_push_ever_seen = False
-        self._push_watchdog: asyncio.TimerHandle | None = None
-        self._retry_after: float | None = None
         self._position_query_supported = True
         self._last_snapshot: Playback | None = None
         self._last_snapshot_at: float | None = None
@@ -190,8 +180,6 @@ class LuciPlaybackClient:
         await self.async_disconnect()
         self._clear_playback()
         self._disconnected_at = None
-        self._position_push_ever_seen = False
-        self._retry_after = None
 
     def _clear_playback(self) -> None:
         self._state = self._metadata = self._position = self._last_snapshot = None
@@ -204,7 +192,6 @@ class LuciPlaybackClient:
     async def _disconnect(self) -> None:
         self._cancel_transition()
         self._cancel_publish()
-        self._cancel_push_watchdog()
         task, self._reader_task = self._reader_task, None
         writer, self._writer = self._writer, None
         self._clear_position_push()
@@ -247,9 +234,6 @@ class LuciPlaybackClient:
     async def _connect(self) -> None:
         if self._stopping:
             raise ConnectionError("LUCI client is shutting down")
-        if self._retry_after is not None and asyncio.get_running_loop().time() < self._retry_after:
-            raise LuciSessionStale("LUCI session is waiting before reconnecting")
-        self._retry_after = None
         if self._writer is not None:
             if not self._writer.is_closing() and not self._reader_task.done():
                 return
@@ -275,7 +259,6 @@ class LuciPlaybackClient:
             await self._disconnect()
             raise
         self._disconnected_at = None
-        self._arm_push_watchdog()
         _LOGGER.debug("Registered LUCI session")
 
     async def _read_loop(self, reader: asyncio.StreamReader) -> None:
@@ -369,9 +352,6 @@ class LuciPlaybackClient:
             if pushed:
                 self._pushed_position = self._position
                 self._pushed_position_at = asyncio.get_running_loop().time()
-                self._position_push_ever_seen = True
-                self._cancel_push_watchdog()
-                self._arm_push_watchdog()
         elif box == SPEAKER:
             # Do not let an inactive event override a confirmed pause or play.
             if self._pending_state == 1 and _ascii(payload).startswith("SPEAKER_INACTIVE,"):
@@ -380,44 +360,6 @@ class LuciPlaybackClient:
         else:
             return
         self._schedule_publish()
-
-    def _arm_push_watchdog(self) -> None:
-        if (
-            PUSH_WATCHDOG
-            and self.connected
-            and self._state == 0
-            and self._position_push_ever_seen
-            and self._push_watchdog is None
-        ):
-            self._push_watchdog = asyncio.get_running_loop().call_later(
-                PUSH_SILENCE_LIMIT, self._on_push_silence
-            )
-
-    def _cancel_push_watchdog(self) -> None:
-        if self._push_watchdog is not None:
-            self._push_watchdog.cancel()
-            self._push_watchdog = None
-
-    def _on_push_silence(self) -> None:
-        self._push_watchdog = None
-        asyncio.create_task(self._async_close_stale_session(self._writer))
-
-    async def _async_close_stale_session(self, writer: asyncio.StreamWriter | None) -> None:
-        async with self._lock:
-            # A push, state change or reconnect may have arrived while waiting for the lock.
-            if (
-                self._stopping
-                or writer is None
-                or writer is not self._writer
-                or self._state != 0
-                or self._push_watchdog is not None
-            ):
-                return
-            # A read or command already waiting for the lock must also respect the delay.
-            self._retry_after = asyncio.get_running_loop().time() + STALE_RECONNECT_DELAY
-            await self._disconnect()
-            if self._listener is not None and not self._stopping:
-                self._listener(LuciSessionStale("LUCI playback position notifications stopped"))
 
     def _clear_position_push(self) -> None:
         self._pushed_position = self._pushed_position_at = None
@@ -484,10 +426,6 @@ class LuciPlaybackClient:
         if state not in (0, 1, 2, *_BUFFERING_STATES) and self._state != state:
             _LOGGER.debug("Unmapped LUCI playback state: %s", state)
         self._state = state
-        if state == 0:
-            self._arm_push_watchdog()
-        else:
-            self._cancel_push_watchdog()
 
     def _snapshot(self) -> Playback | None:
         if self._state is None:
