@@ -24,6 +24,7 @@ ACK_TIMEOUT = 0.5
 ACK_GRACE = 3
 PUSH_SETTLE = 0.15
 TRACK_GAP = 2.0
+_BUFFERING_STATES = (3, 4, 5)
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -378,8 +379,10 @@ class LuciPlaybackClient:
         self._schedule_publish()
 
     def _apply_state(self, state: int) -> None:
-        if (state == 1 and self._state in (0, 2, 5)) or (state == 5 and self._state == 0):
-            # 1 -> 5 -> 0 is also a track change. Don't publish it as a new
+        if (
+            state == 1 and self._state in (0, 2, *_BUFFERING_STATES)
+        ) or (state in _BUFFERING_STATES and self._state == 0):
+            # An idle or buffering blip can also be a track change. Don't publish it as a new
             # session, or an amplifier following the entity will switch again.
             if self._pending_state is None:
                 self._schedule_transition(state, TRACK_GAP)
@@ -394,7 +397,7 @@ class LuciPlaybackClient:
             self._metadata = self._position = None
             self._clear_position_push()
             self._last_view_push = None
-        if state not in (0, 1, 2, 5) and self._state != state:
+        if state not in (0, 1, 2, *_BUFFERING_STATES) and self._state != state:
             _LOGGER.debug("Unmapped LUCI playback state: %s", state)
         self._state = state
 

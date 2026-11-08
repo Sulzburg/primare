@@ -33,6 +33,8 @@ _STATES = {
     0: MediaPlayerState.PLAYING,
     1: MediaPlayerState.IDLE,
     2: MediaPlayerState.PAUSED,
+    3: MediaPlayerState.BUFFERING,
+    4: MediaPlayerState.BUFFERING,
     5: MediaPlayerState.BUFFERING,
 }
 

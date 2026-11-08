@@ -245,6 +245,19 @@ class LuciTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((snapshot.state, snapshot.title, snapshot.position), (0, "Next", 1.2))
         self.assertTrue(updates.empty())
 
+    async def test_connecting_and_receiving_skip_play_view_and_tolerate_idle_blip(self):
+        self.state = b"3"
+        self.assertEqual(await self.client.async_read(), luci.Playback(3))
+        self.state = b"4"
+        self.assertEqual(await self.client.async_read(), luci.Playback(4))
+        self.state = b"1"
+        self.assertEqual(await self.client.async_read(), luci.Playback(4))
+        self.assertEqual(self.connections, 1)
+        self.assertEqual(
+            [box for _, box, _ in self.requests],
+            [luci.REGISTER, luci.PLAY_STATE, luci.PLAY_STATE, luci.PLAY_STATE],
+        )
+
     async def test_resync_during_track_gap_does_not_request_idle_metadata(self):
         await self.client.async_read()
         start = len(self.requests)
