@@ -1,8 +1,10 @@
 """Read and control playback on the Primare streaming module (LUCI)."""
 
 import asyncio
+from contextlib import suppress
 from dataclasses import dataclass, replace
 import json
+import logging
 import struct
 from urllib.parse import urlsplit
 
@@ -14,6 +16,12 @@ POSITION = 0x31
 PLAY_STATE = 0x33
 REPLY = 1
 MAX_PAYLOAD = 5120
+IDLE_TIMEOUT = 30
+_LOGGER = logging.getLogger(__name__)
+
+
+class LuciRefused(ValueError):
+    """A matching LUCI reply explicitly rejected the request."""
 
 
 @dataclass(frozen=True)
@@ -103,8 +111,20 @@ def _playback(payload: bytes, state: int) -> Playback:
     )
 
 
+def _ascii(payload: bytes) -> str:
+    return payload.decode("ascii", errors="replace").strip(" \t\r\n\v\f\0")
+
+
+def _position(payload: bytes) -> float | None:
+    try:
+        position = int(_ascii(payload))
+    except ValueError:
+        return None
+    return position / 1000 if position >= 0 else None
+
+
 class LuciPlaybackClient:
-    """Serialize queries and transport commands on one LUCI session."""
+    """Serialize polling and transport on one LUCI session."""
 
     def __init__(self, host: str, port: int = PORT) -> None:
         self._host = host
@@ -112,11 +132,51 @@ class LuciPlaybackClient:
         self._lock = asyncio.Lock()
         self._reader: asyncio.StreamReader | None = None
         self._writer: asyncio.StreamWriter | None = None
+        self._idle_handle: asyncio.TimerHandle | None = None
+        self._pending_frame: tuple[int, int, int] | None = None
+        self._pushed_position: bytes | None = None
+        self._position_push_seen = False
+        self._position_query_supported = True
+        self._stopping = False
+        self._transport_ack_pending = False
+
+    def _cancel_idle(self) -> None:
+        if self._idle_handle is not None:
+            self._idle_handle.cancel()
+            self._idle_handle = None
+
+    def _arm_idle(self) -> None:
+        if self._writer is not None:
+            self._idle_handle = asyncio.get_running_loop().call_later(
+                IDLE_TIMEOUT, self.close
+            )
+
+    def _disconnect(self) -> asyncio.StreamWriter | None:
+        self._cancel_idle()
+        writer = self._writer
+        self._reader = self._writer = None
+        self._pending_frame = None
+        self._pushed_position = None
+        self._position_push_seen = False
+        self._position_query_supported = True
+        self._transport_ack_pending = False
+        if writer is not None:
+            writer.close()
+        return writer
 
     def close(self) -> None:
-        if self._writer is not None:
-            self._writer.close()
-        self._reader = self._writer = None
+        self._disconnect()
+
+    async def async_shutdown(self) -> None:
+        self._stopping = True
+        await self.async_disconnect()
+
+    async def async_disconnect(self) -> None:
+        async with self._lock:
+            if (writer := self._disconnect()) is not None:
+                with suppress(OSError, TimeoutError):
+                    async with asyncio.timeout(1):
+                        await writer.wait_closed()
 
     async def _send(self, kind: int, box: int, payload: bytes = b"") -> None:
         assert self._writer is not None
@@ -128,60 +188,104 @@ class LuciPlaybackClient:
     async def _reply(self, box: int) -> bytes:
         assert self._reader is not None
         while True:
-            _, _, received, status, _, size = struct.unpack(
-                ">HBHBHH", await self._reader.readexactly(10)
-            )
-            if size > MAX_PAYLOAD:
-                raise ValueError("Oversized LUCI frame")
+            if self._pending_frame is None:
+                _, _, received, status, _, size = struct.unpack(
+                    ">HBHBHH", await self._reader.readexactly(10)
+                )
+                if size > MAX_PAYLOAD:
+                    raise ValueError("Oversized LUCI frame")
+                # A command can time out mid-frame without closing the session.
+                self._pending_frame = (received, status, size)
+            received, status, size = self._pending_frame
             payload = await self._reader.readexactly(size)
-            if status == 3 or (received == box and status == 2):
-                raise ValueError("LUCI request refused")
-            if received == box and status == REPLY:
-                return payload
+            self._pending_frame = None
+            if status == 0:
+                if received == POSITION:
+                    self._pushed_position = payload
+                    self._position_push_seen = True
+                continue
+            if received == TRANSPORT and box != TRANSPORT:
+                self._transport_ack_pending = False
+            if status == 3 and received in (0, box):
+                raise ValueError(f"LUCI session not registered (box {box:#04x})")
+            if received == box:
+                if status == REPLY:
+                    return payload
+                if status == 2:
+                    raise LuciRefused(f"LUCI request refused for box {box:#04x}")
+                raise ValueError(f"Unexpected LUCI status {status} for box {box:#04x}")
+
+    async def _wait_for_reply(self, box: int, timeout: float) -> bytes:
+        try:
+            async with asyncio.timeout(timeout):
+                return await self._reply(box)
+        except TimeoutError as err:
+            raise TimeoutError(f"LUCI timed out waiting for box {box:#04x}") from err
 
     async def _connect(self) -> None:
+        if self._stopping:
+            raise ConnectionError("LUCI client is shutting down")
         if self._writer is not None:
-            return
-        self._reader, self._writer = await asyncio.open_connection(
-            self._host, self._port
-        )
+            assert self._reader is not None
+            if not self._writer.is_closing() and not self._reader.at_eof():
+                return
+            self.close()
+        try:
+            async with asyncio.timeout(3):
+                self._reader, self._writer = await asyncio.open_connection(
+                    self._host, self._port
+                )
+        except TimeoutError as err:
+            raise TimeoutError("LUCI TCP connection timed out") from err
         local_ip = self._writer.get_extra_info("sockname")[0]
         await self._send(2, REGISTER, local_ip.encode("ascii"))
-        await self._reply(REGISTER)
+        await self._wait_for_reply(REGISTER, 3)
+        _LOGGER.debug("Registered LUCI session")
 
-    async def _query(self, box: int) -> bytes:
+    async def _query(self, box: int, timeout: float = 3) -> bytes:
         await self._send(1, box)
-        return await self._reply(box)
+        return await self._wait_for_reply(box, timeout)
 
     async def async_read(self) -> Playback:
         async with self._lock:
+            self._cancel_idle()
+            self._pushed_position = None
             try:
-                async with asyncio.timeout(3):
-                    await self._connect()
-                    # PlayView can keep reporting "playing" after Spotify pauses.
-                    state = _number((await self._query(PLAY_STATE)).decode("ascii"))
-                    if state == 1:
-                        return Playback(state)
-                    if state not in (0, 2, 5):
-                        raise ValueError("Unknown LUCI playback state")
-                    playback = _playback(await self._query(PLAY_VIEW), state)
+                await self._connect()
+                # PlayView can keep reporting "playing" after Spotify pauses.
+                raw_state = _ascii(await self._query(PLAY_STATE))
+                try:
+                    state = int(raw_state)
+                except ValueError as err:
+                    raise ValueError(
+                        "Empty LUCI playback state" if not raw_state
+                        else "Non-numeric LUCI playback state"
+                    ) from err
+                if state not in (0, 2, 5):
+                    if state != 1:
+                        _LOGGER.debug("Unmapped LUCI playback state: %s", state)
+                    return Playback(state)
+                playback = _playback(await self._query(PLAY_VIEW), state)
                 if state == 5:
                     return playback
-                try:
-                    async with asyncio.timeout(1):
-                        raw_position = await self._query(POSITION)
-                except (TimeoutError, ValueError):
-                    # The source may omit the position. A late response must
-                    # not be confused with a reply to the next poll.
-                    self.close()
-                    return playback
-                position = _number(raw_position.decode("ascii", errors="replace"))
-                if position is not None and position >= 0:
-                    return replace(playback, position=position / 1000)
+                if self._pushed_position is not None:
+                    return replace(playback, position=_position(self._pushed_position))
+                if not self._position_push_seen and self._position_query_supported:
+                    try:
+                        raw_position = await self._query(POSITION, timeout=1)
+                    except LuciRefused:
+                        self._position_query_supported = False
+                    except TimeoutError:
+                        # A late reply could be confused with a future query.
+                        self.close()
+                    else:
+                        return replace(playback, position=_position(raw_position))
                 return playback
-            except (OSError, asyncio.IncompleteReadError, ValueError, asyncio.CancelledError):
+            except (OSError, EOFError, ValueError, asyncio.CancelledError):
                 self.close()
                 raise
+            finally:
+                self._arm_idle()
 
     async def async_transport(self, command: str, position: float | None = None) -> None:
         if command == "SEEK":
@@ -194,12 +298,25 @@ class LuciPlaybackClient:
             raise ValueError("Unsupported LUCI transport command")
 
         async with self._lock:
+            self._cancel_idle()
             try:
+                if self._transport_ack_pending:
+                    # Replies do not identify the command, only its mailbox.
+                    # Polling can keep this session; another command cannot.
+                    self.close()
+                await self._connect()
                 async with asyncio.timeout(3):
-                    await self._connect()
                     await self._send(2, TRANSPORT, payload.encode("ascii"))
-                    # NEXT/PREV and RESUME may send only a state/metadata event.
-                    # Never retry a transport command automatically.
-            except (OSError, asyncio.IncompleteReadError, ValueError, asyncio.CancelledError):
+                try:
+                    await self._wait_for_reply(TRANSPORT, 1)
+                except LuciRefused as err:
+                    raise ValueError("LUCI transport command refused") from err
+                except TimeoutError:
+                    # Some NP5 commands send only events. Never resend them.
+                    self._transport_ack_pending = True
+                    _LOGGER.debug("No LUCI acknowledgement for %s", command)
+            except (OSError, EOFError, ValueError, asyncio.CancelledError):
                 self.close()
                 raise
+            finally:
+                self._arm_idle()
