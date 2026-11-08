@@ -6,7 +6,6 @@ from pathlib import Path
 import struct
 import sys
 import unittest
-from unittest.mock import patch
 
 _PATH = Path(__file__).resolve().parents[1] / "custom_components/primare/luci.py"
 _SPEC = importlib.util.spec_from_file_location("primare_test_luci", _PATH)
@@ -28,6 +27,7 @@ class LuciTest(unittest.IsolatedAsyncioTestCase):
         self.command_reply = frame(luci.TRANSPORT)
         self.requests = []
         self.connections = 0
+        self.writer = None
         self.disconnected = asyncio.Event()
         self.server = await asyncio.start_server(self.device, "127.0.0.1", 0)
         self.client = luci.LuciPlaybackClient(
@@ -41,6 +41,7 @@ class LuciTest(unittest.IsolatedAsyncioTestCase):
 
     async def device(self, reader, writer):
         self.connections += 1
+        self.writer = writer
         try:
             while True:
                 _, kind, box, _, _, length = struct.unpack(
@@ -135,12 +136,76 @@ class LuciTest(unittest.IsolatedAsyncioTestCase):
             await self.client.async_read()
         await asyncio.wait_for(self.disconnected.wait(), 1)
 
-    async def test_idle_client_closes_and_can_reconnect(self):
-        with patch.object(luci, "IDLE_TIMEOUT", 0.03):
-            await self.client.async_read()
-            await asyncio.wait_for(self.disconnected.wait(), 1)
-            self.assertEqual((await self.client.async_read()).state, 0)
-            self.assertEqual(self.connections, 2)
+    async def test_pushes_update_paused_state_without_another_poll(self):
+        updates = asyncio.Queue()
+        self.client.subscribe(updates.put_nowait)
+        self.assertEqual((await self.client.async_read()).state, 0)
+        request_count = len(self.requests)
+        self.writer.write(
+            frame(luci.PLAY_STATE, b"2", 0)
+            + frame(luci.PLAY_VIEW_PUSH, b'{"Window CONTENTS":{"TrackName":"Track"}}', 0)
+            + frame(luci.POSITION, b"1250", 0)
+        )
+        await self.writer.drain()
+        snapshot = await asyncio.wait_for(updates.get(), 1)
+        self.assertEqual((snapshot.state, snapshot.title, snapshot.position), (2, "Track", 1.25))
+        self.assertEqual(len(self.requests), request_count)
+
+    async def test_track_gap_does_not_publish_an_idle_or_buffering_state(self):
+        updates = asyncio.Queue()
+        self.client.subscribe(updates.put_nowait)
+        await self.client.async_read()
+        self.writer.write(frame(luci.PLAY_STATE, b"1", 0))
+        await self.writer.drain()
+        await asyncio.sleep(luci.PUSH_SETTLE * 2)
+        self.assertTrue(updates.empty())
+        self.writer.write(
+            frame(luci.PLAY_STATE, b"5", 0)
+            + frame(luci.PLAY_VIEW, b'{"Window CONTENTS":{"TrackName":"Next"}}', 0)
+            + frame(luci.PLAY_STATE, b"0", 0)
+            + frame(luci.POSITION, b"1200", 0)
+        )
+        await self.writer.drain()
+        snapshot = await asyncio.wait_for(updates.get(), 1)
+        self.assertEqual((snapshot.state, snapshot.title, snapshot.position), (0, "Next", 1.2))
+        self.assertTrue(updates.empty())
+
+    async def test_resync_during_track_gap_does_not_request_idle_metadata(self):
+        await self.client.async_read()
+        start = len(self.requests)
+        self.state = b"1"
+        snapshot = await self.client.async_read()
+        self.assertEqual((snapshot.state, snapshot.title), (0, "Track"))
+        self.assertEqual(self.requests[start:], [(1, luci.PLAY_STATE, b"")])
+
+    async def test_stopped_state_clears_metadata_with_speaker_confirmation(self):
+        updates = asyncio.Queue()
+        self.client.subscribe(updates.put_nowait)
+        await self.client.async_read()
+        self.writer.write(
+            frame(luci.PLAY_STATE, b"1", 0)
+            + frame(luci.SPEAKER, b"SPEAKER_INACTIVE,4", 0)
+        )
+        await self.writer.drain()
+        snapshot = await asyncio.wait_for(updates.get(), 1)
+        self.assertEqual(snapshot, luci.Playback(1))
+
+    async def test_stopped_state_without_confirmation_is_still_published(self):
+        updates = asyncio.Queue()
+        self.client.subscribe(updates.put_nowait)
+        await self.client.async_read()
+        self.writer.write(frame(luci.PLAY_STATE, b"1", 0))
+        await self.writer.drain()
+        self.assertEqual(await asyncio.wait_for(updates.get(), 3), luci.Playback(1))
+
+    async def test_disconnect_notifies_and_next_read_opens_new_session(self):
+        updates = asyncio.Queue()
+        self.client.subscribe(updates.put_nowait)
+        await self.client.async_read()
+        self.writer.close()
+        self.assertIsInstance(await asyncio.wait_for(updates.get(), 1), EOFError)
+        self.assertEqual((await self.client.async_read()).state, 0)
+        self.assertEqual(self.connections, 2)
 
     async def test_shutdown_closes_and_prevents_reconnection(self):
         await self.client.async_read()

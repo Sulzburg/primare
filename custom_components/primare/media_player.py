@@ -14,7 +14,7 @@ from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
-from homeassistant.helpers.event import async_call_later
+from homeassistant.helpers.event import async_call_later, async_track_time_interval
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
     DataUpdateCoordinator,
@@ -23,10 +23,11 @@ from homeassistant.helpers.update_coordinator import (
 from homeassistant.util import dt as dt_util
 
 from .const import CONF_PLAYBACK_STATUS, DOMAIN
-from .luci import LuciPlaybackClient
+from .luci import LuciPlaybackClient, Playback
 
 _LOGGER = logging.getLogger(__name__)
-IDLE_GRACE_SECONDS = 7
+RESYNC_INTERVAL = timedelta(seconds=60)
+RECONNECT_DELAY = 5
 POSITION_TOLERANCE_SECONDS = 1.5
 _STATES = {
     0: MediaPlayerState.PLAYING,
@@ -57,7 +58,6 @@ async def async_setup_entry(hass, entry, async_add_entities):
         _LOGGER,
         config_entry=entry,
         name="Primare playback",
-        update_interval=timedelta(seconds=5),
         update_method=async_read_playback,
     )
 
@@ -66,7 +66,6 @@ async def async_setup_entry(hass, entry, async_add_entities):
         await client.async_shutdown()
 
     entry.async_on_unload(hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, async_stop))
-    await coordinator.async_refresh()
     controls = hass.data[DOMAIN][entry.entry_id]["coordinator"]
     async_add_entities([PrimarePlayback(coordinator, entry, client, controls)])
 
@@ -80,25 +79,73 @@ class PrimarePlayback(CoordinatorEntity, MediaPlayerEntity):
         super().__init__(coordinator)
         self._client = client
         self._controls = controls
-        self._last_active_at = None
-        self._pending_idle = False
         self._track = None
         self._cancel_refresh = None
+        self._cancel_retry = None
+        self._listening = False
         self._attr_name = f'{entry.data["device_name"]} Playback'
         self._attr_unique_id = entry.entry_id
         self._attr_supported_features = MediaPlayerEntityFeature(0)
 
     async def async_added_to_hass(self):
         await super().async_added_to_hass()
+        self._listening = True
         self.async_on_remove(self._controls.async_add_listener(self._handle_power_update))
-        self._apply_snapshot()
+        self.async_on_remove(self._client.subscribe(self._handle_luci_event))
+        # A fixed timer still runs when position notifications keep coming in.
+        self.async_on_remove(
+            async_track_time_interval(self.hass, self._async_resync, RESYNC_INTERVAL)
+        )
+        await self._async_resync()
 
     async def async_will_remove_from_hass(self):
+        self._listening = False
         if self._cancel_refresh is not None:
             self._cancel_refresh()
             self._cancel_refresh = None
+        self._clear_retry()
         await self._client.async_disconnect()
         await super().async_will_remove_from_hass()
+
+    @callback
+    def _handle_luci_event(self, update: Playback | Exception):
+        if not self._listening or self.hass.is_stopping:
+            return
+        if isinstance(update, Exception):
+            self.coordinator.async_set_update_error(UpdateFailed(str(update)))
+            self._schedule_retry()
+        else:
+            self._clear_retry()
+            self.coordinator.async_set_updated_data(update)
+
+    @callback
+    def _clear_retry(self):
+        if self._cancel_retry is not None:
+            self._cancel_retry()
+            self._cancel_retry = None
+
+    @callback
+    def _schedule_retry(self):
+        if self._listening and self._cancel_retry is None and not self.hass.is_stopping:
+            self._cancel_retry = async_call_later(
+                self.hass, RECONNECT_DELAY, self._async_retry
+            )
+
+    async def _async_retry(self, _now):
+        self._cancel_retry = None
+        await self._async_resync()
+
+    async def _async_resync(self, _now=None):
+        if not self._listening or self.hass.is_stopping:
+            return
+        await self.coordinator.async_refresh()
+        if self.coordinator.last_update_success:
+            self._clear_retry()
+        else:
+            self._schedule_retry()
+
+    async def async_update(self):
+        await self._async_resync()
 
     @callback
     def _handle_power_update(self):
@@ -111,6 +158,7 @@ class PrimarePlayback(CoordinatorEntity, MediaPlayerEntity):
             # Wait for the next LUCI read rather than restoring a cached track.
             self._attr_state = None
             self.async_write_ha_state()
+            self._schedule_resync()
 
     @callback
     def _handle_coordinator_update(self):
@@ -123,23 +171,6 @@ class PrimarePlayback(CoordinatorEntity, MediaPlayerEntity):
         previous_state = self._attr_state
         power_off = self._controls.data.get("power") == 0
         playback = self.coordinator.data if self.coordinator.last_update_success else None
-        if (
-            not power_off
-            and playback is not None
-            and playback.state == 1
-            and not self._pending_idle
-            and self._last_active_at is not None
-            and (now - self._last_active_at).total_seconds() < IDLE_GRACE_SECONDS
-        ):
-            # Keep the previous snapshot through a single idle poll between tracks.
-            self._pending_idle = True
-            return
-        self._pending_idle = False
-        self._last_active_at = (
-            now if not power_off and playback is not None and playback.state in (0, 2, 5)
-            else None
-        )
-
         self._attr_state = MediaPlayerState.OFF if power_off else (
             _STATES.get(playback.state) if playback is not None else None
         )
@@ -217,14 +248,20 @@ class PrimarePlayback(CoordinatorEntity, MediaPlayerEntity):
         try:
             await self._client.async_transport(command, position)
         except (OSError, EOFError, ValueError) as err:
+            if not self._client.connected:
+                self._handle_luci_event(err)
             raise HomeAssistantError(f"Could not control Primare playback: {err}") from err
+        self._schedule_resync()
+
+    @callback
+    def _schedule_resync(self):
         if self._cancel_refresh is not None:
             self._cancel_refresh()
         self._cancel_refresh = async_call_later(self.hass, 1, self._async_delayed_refresh)
 
     async def _async_delayed_refresh(self, _now):
         self._cancel_refresh = None
-        await self.coordinator.async_request_refresh()
+        await self._async_resync()
 
     async def async_media_play(self):
         await self._async_transport(
