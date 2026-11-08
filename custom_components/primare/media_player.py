@@ -83,8 +83,7 @@ class PrimarePlayback(CoordinatorEntity, MediaPlayerEntity):
         self._client = client
         self._controls = controls
         self._track = None
-        self._cancel_refresh = None
-        self._cancel_retry = None
+        self._cancel_sync = None
         self._listening = False
         device_name = entry.data["device_name"].strip()
         self._playback_name = f"{device_name} Playback"
@@ -116,10 +115,7 @@ class PrimarePlayback(CoordinatorEntity, MediaPlayerEntity):
 
     async def async_will_remove_from_hass(self):
         self._listening = False
-        if self._cancel_refresh is not None:
-            self._cancel_refresh()
-            self._cancel_refresh = None
-        self._clear_retry()
+        self._cancel_scheduled_sync()
         if self._initial_sync is not None:
             # Entity removal precedes config-entry task cancellation.
             self._initial_sync.cancel()
@@ -133,36 +129,34 @@ class PrimarePlayback(CoordinatorEntity, MediaPlayerEntity):
             return
         if isinstance(update, Exception):
             self.coordinator.async_set_update_error(UpdateFailed(str(update)))
-            self._schedule_retry()
+            self._schedule_sync(RECONNECT_DELAY)
         else:
-            self._clear_retry()
+            self._cancel_scheduled_sync()
             self.coordinator.async_set_updated_data(update)
 
     @callback
-    def _clear_retry(self):
-        if self._cancel_retry is not None:
-            self._cancel_retry()
-            self._cancel_retry = None
+    def _cancel_scheduled_sync(self):
+        if self._cancel_sync is not None:
+            self._cancel_sync()
+            self._cancel_sync = None
 
     @callback
-    def _schedule_retry(self):
-        if self._listening and self._cancel_retry is None and not self.hass.is_stopping:
-            self._cancel_retry = async_call_later(
-                self.hass, RECONNECT_DELAY, self._async_retry
-            )
+    def _schedule_sync(self, delay):
+        if not self._listening or self.hass.is_stopping:
+            return
+        self._cancel_scheduled_sync()
+        self._cancel_sync = async_call_later(self.hass, delay, self._async_scheduled_sync)
 
-    async def _async_retry(self, _now):
-        self._cancel_retry = None
+    async def _async_scheduled_sync(self, _now):
+        self._cancel_sync = None
         await self._async_resync()
 
     async def _async_resync(self, _now=None):
         if not self._listening or self.hass.is_stopping:
             return
         await self.coordinator.async_refresh()
-        if self.coordinator.last_update_success:
-            self._clear_retry()
-        else:
-            self._schedule_retry()
+        if not self.coordinator.last_update_success:
+            self._schedule_sync(RECONNECT_DELAY)
 
     async def async_update(self):
         await self._async_resync()
@@ -178,7 +172,7 @@ class PrimarePlayback(CoordinatorEntity, MediaPlayerEntity):
             # Wait for the next LUCI read rather than restoring a cached track.
             self._attr_state = None
             self.async_write_ha_state()
-            self._schedule_resync()
+            self._schedule_sync(1)
 
     @callback
     def _handle_coordinator_update(self):
@@ -260,17 +254,7 @@ class PrimarePlayback(CoordinatorEntity, MediaPlayerEntity):
             if not self._client.connected:
                 self._handle_luci_event(err)
             raise HomeAssistantError(f"Could not control Primare playback: {err}") from err
-        self._schedule_resync()
-
-    @callback
-    def _schedule_resync(self):
-        if self._cancel_refresh is not None:
-            self._cancel_refresh()
-        self._cancel_refresh = async_call_later(self.hass, 1, self._async_delayed_refresh)
-
-    async def _async_delayed_refresh(self, _now):
-        self._cancel_refresh = None
-        await self._async_resync()
+        self._schedule_sync(1)
 
     async def async_media_play(self):
         await self._async_transport(
