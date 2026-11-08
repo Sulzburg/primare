@@ -6,9 +6,11 @@ import logging
 from homeassistant.components.media_player import (
     MediaPlayerDeviceClass,
     MediaPlayerEntity,
+    MediaPlayerEntityFeature,
     MediaPlayerState,
     MediaType,
 )
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
     DataUpdateCoordinator,
@@ -49,16 +51,17 @@ async def async_setup_entry(hass, entry, async_add_entities):
         update_method=async_read_playback,
     )
     await coordinator.async_refresh()
-    async_add_entities([PrimarePlayback(coordinator, entry)])
+    async_add_entities([PrimarePlayback(coordinator, entry, client)])
 
 
 class PrimarePlayback(CoordinatorEntity, MediaPlayerEntity):
-    """A read-only player, independent of the Spotify account or sender."""
+    """A local player, independent of the Spotify account or sender."""
 
     _attr_device_class = MediaPlayerDeviceClass.SPEAKER
 
-    def __init__(self, coordinator, entry):
+    def __init__(self, coordinator, entry, client):
         super().__init__(coordinator)
+        self._client = client
         self._attr_name = f'{entry.data["device_name"]} Playback'
         self._attr_unique_id = entry.entry_id
 
@@ -122,3 +125,48 @@ class PrimarePlayback(CoordinatorEntity, MediaPlayerEntity):
             }.items()
             if value is not None
         }
+
+    @property
+    def supported_features(self):
+        playback = self._playback
+        if playback is None or playback.state not in (0, 2):
+            return MediaPlayerEntityFeature(0)
+        features = (
+            MediaPlayerEntityFeature.PLAY
+            | MediaPlayerEntityFeature.PAUSE
+            | MediaPlayerEntityFeature.STOP
+        )
+        if playback.can_next:
+            features |= MediaPlayerEntityFeature.NEXT_TRACK
+        if playback.can_previous:
+            features |= MediaPlayerEntityFeature.PREVIOUS_TRACK
+        if playback.can_seek:
+            features |= MediaPlayerEntityFeature.SEEK
+        return features
+
+    async def _async_transport(self, command, position=None):
+        try:
+            await self._client.async_transport(command, position)
+        except (OSError, EOFError, ValueError) as err:
+            raise HomeAssistantError(f"Could not control Primare playback: {err}") from err
+        await self.coordinator.async_request_refresh()
+
+    async def async_media_play(self):
+        await self._async_transport(
+            "RESUME" if self.state == MediaPlayerState.PAUSED else "PLAY"
+        )
+
+    async def async_media_pause(self):
+        await self._async_transport("PAUSE")
+
+    async def async_media_stop(self):
+        await self._async_transport("STOP")
+
+    async def async_media_next_track(self):
+        await self._async_transport("NEXT")
+
+    async def async_media_previous_track(self):
+        await self._async_transport("PREV")
+
+    async def async_media_seek(self, position):
+        await self._async_transport("SEEK", position)

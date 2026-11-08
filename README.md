@@ -60,9 +60,9 @@ That's it.
 
 ## Optional local playback status
 
-In **Settings → Devices & services → Primare → Configure**, enable **Show local playback status**, then restart Home Assistant. This adds a read-only media player for the existing Primare entry. You can use its `playing` state in an automation, including when someone starts Spotify Connect using their own account.
+In **Settings → Devices & services → Primare → Configure**, enable **Enable local media player**, then restart Home Assistant. This adds a local media player for the existing Primare entry. You can use its `playing` state in an automation, including when someone starts Spotify Connect using their own account.
 
-The entity reports the title, artist, album, cover art, duration, and playback position when the streamer provides them. The state attributes `audio_format`, `sample_rate_hz`, `bit_depth`, and `bit_rate_bps` describe what the streamer reports for the stream; they do not measure the digital output after resampling.
+The entity reports the title, artist, album, cover art, duration, and playback position when the streamer provides them. It can play or resume, pause, stop, skip tracks, and seek within a track; the available controls depend on the active source. For example, Spotify Connect pauses and keeps the session when it receives Stop. The state attributes `audio_format`, `sample_rate_hz`, `bit_depth`, and `bit_rate_bps` describe what the streamer reports for the stream; they do not measure the digital output after resampling.
 
 Verified with Spotify Connect on an NP5 Prisma MK2. The feature uses the streamer's local LUCI protocol on TCP port 7777; it is off by default because other models or firmware may not expose the same data. Playback status does not require Spotify credentials and does not change how the existing Primare controls work.
 

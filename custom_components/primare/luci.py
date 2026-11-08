@@ -1,4 +1,4 @@
-"""Read playback snapshots from the Primare streaming module (LUCI)."""
+"""Read and control playback on the Primare streaming module (LUCI)."""
 
 import asyncio
 from dataclasses import dataclass, replace
@@ -8,8 +8,10 @@ from urllib.parse import urlsplit
 
 PORT = 7777
 REGISTER = 0x03
+TRANSPORT = 0x28
 PLAY_VIEW = 0x2A
 POSITION = 0x31
+PLAY_STATE = 0x33
 REPLY = 1
 MAX_PAYLOAD = 5120
 
@@ -28,6 +30,9 @@ class Playback:
     bit_rate_bps: int | None = None
     cover_art_url: str | None = None
     source_app: str | None = None
+    can_next: bool = False
+    can_previous: bool = False
+    can_seek: bool = False
 
 
 def _text(value):
@@ -69,19 +74,13 @@ def _positive(value):
     return number if number is not None and number > 0 else None
 
 
-def _playback(payload: bytes) -> Playback:
+def _playback(payload: bytes, state: int) -> Playback:
     try:
-        message = json.loads(payload.rstrip(b"\0"))
-        view = message["Window CONTENTS"]
-        state = _number(view["PlayState"])
+        view = json.loads(payload.rstrip(b"\0"))["Window CONTENTS"]
     except (ValueError, TypeError, KeyError) as err:
         raise ValueError("Invalid LUCI PlayView response") from err
-
-    if state == 1:
-        # The module can retain the previous track in an idle snapshot.
-        return Playback(state)
-    if state not in (0, 2, 5):
-        raise ValueError("Unknown LUCI playback state")
+    if not isinstance(view, dict):
+        raise ValueError("Invalid LUCI PlayView contents")
 
     duration = _positive(view.get("TotalTime"))
     position = _number(view.get("Current_time"))
@@ -98,15 +97,19 @@ def _playback(payload: bytes) -> Playback:
         bit_rate_bps=_positive(view.get("BitRate")),
         cover_art_url=_cover_url(view.get("CoverArtUrl")),
         source_app=_text(view.get("CastContentApp")),
+        can_next=view.get("Next") is True,
+        can_previous=view.get("Prev") is True,
+        can_seek=view.get("Seek") is True,
     )
 
 
 class LuciPlaybackClient:
-    """One session per device; only registration and playback queries are sent."""
+    """Serialize queries and transport commands on one LUCI session."""
 
     def __init__(self, host: str, port: int = PORT) -> None:
         self._host = host
         self._port = port
+        self._lock = asyncio.Lock()
         self._reader: asyncio.StreamReader | None = None
         self._writer: asyncio.StreamWriter | None = None
 
@@ -136,34 +139,67 @@ class LuciPlaybackClient:
             if received == box and status == REPLY:
                 return payload
 
-    async def async_read(self) -> Playback:
-        try:
-            async with asyncio.timeout(3):
-                if self._writer is None:
-                    self._reader, self._writer = await asyncio.open_connection(
-                        self._host, self._port
-                    )
-                    local_ip = self._writer.get_extra_info("sockname")[0]
-                    await self._send(2, REGISTER, local_ip.encode("ascii"))
-                    await self._reply(REGISTER)
+    async def _connect(self) -> None:
+        if self._writer is not None:
+            return
+        self._reader, self._writer = await asyncio.open_connection(
+            self._host, self._port
+        )
+        local_ip = self._writer.get_extra_info("sockname")[0]
+        await self._send(2, REGISTER, local_ip.encode("ascii"))
+        await self._reply(REGISTER)
 
-                await self._send(1, PLAY_VIEW)
-                playback = _playback(await self._reply(PLAY_VIEW))
-            if playback.state not in (0, 2):
-                return playback
+    async def _query(self, box: int) -> bytes:
+        await self._send(1, box)
+        return await self._reply(box)
+
+    async def async_read(self) -> Playback:
+        async with self._lock:
             try:
-                async with asyncio.timeout(1):
-                    await self._send(1, POSITION)
-                    raw_position = await self._reply(POSITION)
-            except (TimeoutError, ValueError):
-                # Position support varies by source. Keep the verified snapshot;
-                # close so a partial or late reply cannot affect the next poll.
-                self.close()
+                async with asyncio.timeout(3):
+                    await self._connect()
+                    # PlayView can keep reporting "playing" after Spotify pauses.
+                    state = _number((await self._query(PLAY_STATE)).decode("ascii"))
+                    if state == 1:
+                        return Playback(state)
+                    if state not in (0, 2, 5):
+                        raise ValueError("Unknown LUCI playback state")
+                    playback = _playback(await self._query(PLAY_VIEW), state)
+                if state == 5:
+                    return playback
+                try:
+                    async with asyncio.timeout(1):
+                        raw_position = await self._query(POSITION)
+                except (TimeoutError, ValueError):
+                    # The source may omit the position. A late response must
+                    # not be confused with a reply to the next poll.
+                    self.close()
+                    return playback
+                position = _number(raw_position.decode("ascii", errors="replace"))
+                if position is not None and position >= 0:
+                    return replace(playback, position=position / 1000)
                 return playback
-            position = _number(raw_position.decode("ascii", errors="replace"))
-            if position is not None and position >= 0:
-                return replace(playback, position=position / 1000)
-            return playback
-        except (OSError, asyncio.IncompleteReadError, ValueError, asyncio.CancelledError):
-            self.close()
-            raise
+            except (OSError, asyncio.IncompleteReadError, ValueError, asyncio.CancelledError):
+                self.close()
+                raise
+
+    async def async_transport(self, command: str, position: float | None = None) -> None:
+        if command == "SEEK":
+            if position is None or not 0 <= position <= 2_147_483.647:
+                raise ValueError("Invalid playback position")
+            payload = f"SEEK:{int(position * 1000)}"
+        elif command in ("PLAY", "RESUME", "PAUSE", "STOP", "NEXT", "PREV"):
+            payload = command
+        else:
+            raise ValueError("Unsupported LUCI transport command")
+
+        async with self._lock:
+            try:
+                async with asyncio.timeout(3):
+                    await self._connect()
+                    await self._send(2, TRANSPORT, payload.encode("ascii"))
+                    # NEXT/PREV and RESUME may send only a state/metadata event.
+                    # Never retry a transport command automatically.
+            except (OSError, asyncio.IncompleteReadError, ValueError, asyncio.CancelledError):
+                self.close()
+                raise
