@@ -23,7 +23,7 @@ from homeassistant.helpers.update_coordinator import (
 from homeassistant.util import dt as dt_util
 
 from .const import CONF_PLAYBACK_STATUS, DOMAIN
-from .luci import LuciPlaybackClient, Playback
+from .luci import STALE_RECONNECT_DELAY, LuciPlaybackClient, LuciSessionStale, Playback
 
 _LOGGER = logging.getLogger(__name__)
 RESYNC_INTERVAL = timedelta(seconds=60)
@@ -52,6 +52,9 @@ async def async_setup_entry(hass, entry, async_add_entities):
     async def async_read_playback():
         try:
             return await client.async_read()
+        except LuciSessionStale:
+            # A refresh queued before the watchdog fired keeps the last snapshot.
+            return coordinator.data
         except (OSError, EOFError, ValueError) as err:
             raise UpdateFailed(f"Could not read Primare playback: {err}") from err
 
@@ -84,6 +87,7 @@ class PrimarePlayback(CoordinatorEntity, MediaPlayerEntity):
         self._track = None
         self._cancel_refresh = None
         self._cancel_retry = None
+        self._waiting_for_push_retry = False
         self._listening = False
         device_name = entry.data["device_name"].strip()
         self._playback_name = f"{device_name} Playback"
@@ -124,7 +128,12 @@ class PrimarePlayback(CoordinatorEntity, MediaPlayerEntity):
     def _handle_luci_event(self, update: Playback | Exception):
         if not self._listening or self.hass.is_stopping:
             return
-        if isinstance(update, Exception):
+        if isinstance(update, LuciSessionStale):
+            # Rapid re-registration can leave a LUCI session without notifications.
+            self._clear_retry()
+            self._waiting_for_push_retry = True
+            self._schedule_retry(STALE_RECONNECT_DELAY)
+        elif isinstance(update, Exception):
             self.coordinator.async_set_update_error(UpdateFailed(str(update)))
             self._schedule_retry()
         else:
@@ -138,20 +147,23 @@ class PrimarePlayback(CoordinatorEntity, MediaPlayerEntity):
             self._cancel_retry = None
 
     @callback
-    def _schedule_retry(self):
+    def _schedule_retry(self, delay=RECONNECT_DELAY):
         if self._listening and self._cancel_retry is None and not self.hass.is_stopping:
             self._cancel_retry = async_call_later(
-                self.hass, RECONNECT_DELAY, self._async_retry
+                self.hass, delay, self._async_retry
             )
 
     async def _async_retry(self, _now):
         self._cancel_retry = None
+        self._waiting_for_push_retry = False
         await self._async_resync()
 
     async def _async_resync(self, _now=None):
-        if not self._listening or self.hass.is_stopping:
+        if not self._listening or self._waiting_for_push_retry or self.hass.is_stopping:
             return
         await self.coordinator.async_refresh()
+        if self._waiting_for_push_retry:
+            return
         if self.coordinator.last_update_success:
             self._clear_retry()
         else:
@@ -258,8 +270,12 @@ class PrimarePlayback(CoordinatorEntity, MediaPlayerEntity):
         return self._controls.data.get("power") == 0 or super().available
 
     async def _async_transport(self, command, position=None):
+        if self._waiting_for_push_retry:
+            raise HomeAssistantError("Primare playback is reconnecting")
         try:
             await self._client.async_transport(command, position)
+        except LuciSessionStale as err:
+            raise HomeAssistantError("Primare playback is reconnecting") from err
         except (OSError, EOFError, ValueError) as err:
             if not self._client.connected:
                 self._handle_luci_event(err)

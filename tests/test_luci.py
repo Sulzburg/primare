@@ -397,6 +397,41 @@ class LuciTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(await self.client.async_read(), luci.Playback(1))
         self.assertEqual(self.connections, 3)
 
+    async def test_watchdog_detects_silent_playing_session(self):
+        updates = asyncio.Queue()
+        self.client.subscribe(updates.put_nowait)
+        self.push = b"1000"
+        with patch.object(luci, "PUSH_SILENCE_LIMIT", 0.1):
+            self.assertEqual((await self.client.async_read()).state, 0)
+            self.assertIsInstance(await asyncio.wait_for(updates.get(), 1), luci.LuciSessionStale)
+        await asyncio.wait_for(self.disconnected.wait(), 1)
+        self.assertFalse(self.client.connected)
+        with self.assertRaises(luci.LuciSessionStale):
+            await self.client.async_read()
+        self.assertEqual(self.connections, 1)
+
+    async def test_watchdog_only_checks_playing_after_a_position_push(self):
+        updates = asyncio.Queue()
+        self.client.subscribe(updates.put_nowait)
+        with patch.object(luci, "PUSH_SILENCE_LIMIT", 0.1):
+            self.assertEqual((await self.client.async_read()).state, 0)
+            with self.assertRaises(TimeoutError):
+                await asyncio.wait_for(updates.get(), 0.15)
+
+            self.state = b"2"
+            self.push = b"1000"
+            self.assertEqual((await self.client.async_read()).state, 2)
+            with self.assertRaises(TimeoutError):
+                await asyncio.wait_for(updates.get(), 0.15)
+
+            self.writer.close()
+            self.assertIsInstance(await asyncio.wait_for(updates.get(), 1), EOFError)
+            self.state = b"0"
+            self.push = None
+            self.assertEqual((await self.client.async_read()).state, 0)
+            self.assertIsInstance(await asyncio.wait_for(updates.get(), 1), luci.LuciSessionStale)
+        self.assertEqual(self.connections, 2)
+
     async def test_shutdown_closes_and_prevents_reconnection(self):
         await self.client.async_read()
         await self.client.async_shutdown()
