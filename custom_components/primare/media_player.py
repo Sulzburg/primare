@@ -82,6 +82,8 @@ class PrimarePlayback(CoordinatorEntity, MediaPlayerEntity):
 
     def __init__(self, coordinator, entry, client, controls):
         super().__init__(coordinator)
+        self._entry = entry
+        self._initial_sync = None
         self._client = client
         self._controls = controls
         self._track = None
@@ -113,7 +115,9 @@ class PrimarePlayback(CoordinatorEntity, MediaPlayerEntity):
         self.async_on_remove(
             async_track_time_interval(self.hass, self._async_resync, RESYNC_INTERVAL)
         )
-        await self._async_resync()
+        self._initial_sync = self._entry.async_create_background_task(
+            self.hass, self._async_resync(), "primare_playback_initial_sync"
+        )
 
     async def async_will_remove_from_hass(self):
         self._listening = False
@@ -121,6 +125,10 @@ class PrimarePlayback(CoordinatorEntity, MediaPlayerEntity):
             self._cancel_refresh()
             self._cancel_refresh = None
         self._clear_retry()
+        if self._initial_sync is not None:
+            # Entity removal precedes config-entry task cancellation.
+            self._initial_sync.cancel()
+            self._initial_sync = None
         await self._client.async_disconnect()
         await super().async_will_remove_from_hass()
 
