@@ -1,10 +1,13 @@
 # custom_components/primare/__init__.py
 
+import homeassistant.helpers.config_validation as cv
 from .coordinator import PrimareDataCoordinator
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 
 from .const import DOMAIN, INPUT_MAPS
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 PLATFORMS = ["switch", "number", "select", "media_player"]
 
