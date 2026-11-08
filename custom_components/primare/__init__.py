@@ -6,7 +6,7 @@ from homeassistant.config_entries import ConfigEntry
 
 from .const import DOMAIN, INPUT_MAPS
 
-PLATFORMS = ["switch", "number", "select"]  # media_player ggf. aktivieren
+PLATFORMS = ["switch", "number", "select", "media_player"]
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Basis-Setup, nur erforderlich für die Registrierung der Integration."""
