@@ -427,7 +427,7 @@ class LuciPlaybackClient:
     def _snapshot(self) -> Playback | None:
         if self._state is None:
             return None
-        if self._metadata is None or self._state not in (0, 2, 5):
+        if self._metadata is None or self._state not in (0, 2, *_BUFFERING_STATES):
             return Playback(self._state)
         return replace(self._metadata, state=self._state, position=self._position)
 

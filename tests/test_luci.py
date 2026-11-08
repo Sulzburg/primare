@@ -253,6 +253,30 @@ class LuciTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((snapshot.state, snapshot.title, snapshot.position), (0, "Next", 1.2))
         self.assertTrue(updates.empty())
 
+    async def test_short_connecting_and_receiving_blips_keep_the_playing_snapshot(self):
+        updates = asyncio.Queue()
+        self.client.subscribe(updates.put_nowait)
+        await self.client.async_read()
+        for raw in (b"3", b"4"):
+            self.writer.write(frame(luci.PLAY_STATE, raw, 0))
+            await self.writer.drain()
+            await asyncio.sleep(luci.PUSH_SETTLE * 2)
+            self.assertTrue(updates.empty())
+            self.writer.write(frame(luci.PLAY_STATE, b"0", 0))
+            await self.writer.drain()
+            await asyncio.sleep(luci.PUSH_SETTLE * 2)
+            self.assertTrue(updates.empty())
+
+    async def test_sustained_connecting_keeps_known_track_details(self):
+        updates = asyncio.Queue()
+        self.client.subscribe(updates.put_nowait)
+        await self.client.async_read()
+        with patch.object(luci, "TRACK_GAP", 0.05):
+            self.writer.write(frame(luci.PLAY_STATE, b"3", 0))
+            await self.writer.drain()
+            snapshot = await asyncio.wait_for(updates.get(), 1)
+        self.assertEqual((snapshot.state, snapshot.title), (3, "Track"))
+
     async def test_connecting_and_receiving_skip_play_view_and_tolerate_idle_blip(self):
         self.state = b"3"
         self.assertEqual(await self.client.async_read(), luci.Playback(3))
