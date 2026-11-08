@@ -22,6 +22,7 @@ MAX_PAYLOAD = 5120
 REGISTER_SETTLE = 0.1
 ACK_TIMEOUT = 0.5
 PUSH_SETTLE = 0.15
+POSITION_TOLERANCE = 1.5
 TRACK_GAP = 2.0
 STATE_KEEP_SECONDS = 10
 PUSH_WATCHDOG = True
@@ -160,6 +161,7 @@ class LuciPlaybackClient:
         self._retry_after: float | None = None
         self._position_query_supported = True
         self._last_snapshot: Playback | None = None
+        self._last_snapshot_at: float | None = None
         self._disconnected_at: float | None = None
         self._publish_handle: asyncio.TimerHandle | None = None
         self._transition_handle: asyncio.TimerHandle | None = None
@@ -189,6 +191,7 @@ class LuciPlaybackClient:
 
     def _clear_playback(self) -> None:
         self._state = self._metadata = self._position = self._last_snapshot = None
+        self._last_snapshot_at = None
 
     async def async_disconnect(self) -> None:
         async with self._lock:
@@ -509,9 +512,23 @@ class LuciPlaybackClient:
         if self._syncing or self._listener is None or self._stopping:
             return
         snapshot = self._snapshot()
-        if snapshot is not None and snapshot != self._last_snapshot:
-            self._last_snapshot = snapshot
-            self._listener(snapshot)
+        last = self._last_snapshot
+        if snapshot is None:
+            return
+        now = asyncio.get_running_loop().time()
+        if last is not None and replace(snapshot, position=None) == replace(last, position=None):
+            if snapshot.position is not None and last.position is not None:
+                expected = last.position
+                if last.state == 0:
+                    assert self._last_snapshot_at is not None
+                    expected += now - self._last_snapshot_at
+                if abs(snapshot.position - expected) <= POSITION_TOLERANCE:
+                    return
+            elif snapshot.position == last.position:
+                return
+        self._last_snapshot = snapshot
+        self._last_snapshot_at = now
+        self._listener(snapshot)
 
     async def async_read(self) -> Playback:
         """Seed the initial state and periodically check a quiet session."""
@@ -529,6 +546,7 @@ class LuciPlaybackClient:
                 if snapshot is None:
                     raise ConnectionError("LUCI connection closed while reading playback")
                 self._last_snapshot = snapshot
+                self._last_snapshot_at = asyncio.get_running_loop().time()
                 return snapshot
             except (OSError, EOFError, ValueError, asyncio.CancelledError):
                 await self._disconnect()

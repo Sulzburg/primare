@@ -23,12 +23,17 @@ from homeassistant.helpers.update_coordinator import (
 from homeassistant.util import dt as dt_util
 
 from .const import CONF_PLAYBACK_STATUS, DOMAIN
-from .luci import STALE_RECONNECT_DELAY, LuciPlaybackClient, LuciSessionStale, Playback
+from .luci import (
+    POSITION_TOLERANCE,
+    STALE_RECONNECT_DELAY,
+    LuciPlaybackClient,
+    LuciSessionStale,
+    Playback,
+)
 
 _LOGGER = logging.getLogger(__name__)
 RESYNC_INTERVAL = timedelta(seconds=60)
 RECONNECT_DELAY = 5
-POSITION_TOLERANCE_SECONDS = 1.5
 _STATES = {
     0: MediaPlayerState.PLAYING,
     1: MediaPlayerState.IDLE,
@@ -248,7 +253,7 @@ class PrimarePlayback(CoordinatorEntity, MediaPlayerEntity):
                 expected = self._attr_media_position
                 if self._attr_state == MediaPlayerState.PLAYING:
                     expected += (now - self._attr_media_position_updated_at).total_seconds()
-                    if abs(position - expected) <= POSITION_TOLERANCE_SECONDS:
+                    if abs(position - expected) <= POSITION_TOLERANCE:
                         return
                 elif position == expected:
                     return

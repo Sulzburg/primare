@@ -397,6 +397,26 @@ class LuciTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(await self.client.async_read(), luci.Playback(1))
         self.assertEqual(self.connections, 3)
 
+    async def test_regular_playing_positions_do_not_publish_but_seek_does(self):
+        updates = asyncio.Queue()
+        self.client.subscribe(updates.put_nowait)
+        self.position_reply = frame(luci.POSITION, b"-1000")
+        await self.client.async_read()
+        self.writer.write(frame(luci.POSITION, b"1000", 0))
+        await self.writer.drain()
+        self.assertEqual((await asyncio.wait_for(updates.get(), 1)).position, 1)
+
+        for position in (b"2000", b"3000", b"4000"):
+            await asyncio.sleep(1)
+            self.writer.write(frame(luci.POSITION, position, 0))
+            await self.writer.drain()
+        await asyncio.sleep(luci.PUSH_SETTLE * 2)
+        self.assertTrue(updates.empty())
+
+        self.writer.write(frame(luci.POSITION, b"60000", 0))
+        await self.writer.drain()
+        self.assertEqual((await asyncio.wait_for(updates.get(), 1)).position, 60)
+
     async def test_watchdog_detects_silent_playing_session(self):
         updates = asyncio.Queue()
         self.client.subscribe(updates.put_nowait)
