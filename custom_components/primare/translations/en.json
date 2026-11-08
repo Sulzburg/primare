@@ -1,0 +1,21 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add Primare",
+        "data": {
+          "ip_address": "IP address or hostname",
+          "device_name": "Device name",
+          "device_type": "Device type"
+        }
+      }
+    },
+    "error": {
+      "invalid_host": "Enter a valid IP address or hostname.",
+      "missing_name": "Enter a device name."
+    },
+    "abort": {
+      "already_configured": "This address is already configured."
+    }
+  }
+}
