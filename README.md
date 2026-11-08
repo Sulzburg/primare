@@ -60,7 +60,7 @@ That's it.
 
 ## Optional local playback status
 
-In **Settings → Devices & services → Primare → Configure**, turn on **Enable local media player**. Changing this option reloads the integration automatically. This adds a local media player for the existing Primare entry. You can use its `playing` state in an automation, including when someone starts Spotify Connect using their own account.
+In **Settings → Devices & services → Primare → Configure**, turn on **Enable local media player**. Changing this option reloads the integration automatically. This adds a local media player named `Primare <device name> Playback` for the existing entry. You can use its `playing` state in an automation, including when someone starts Spotify Connect using their own account.
 
 The player listens for updates from the streamer and checks the connection once a minute. The entity reports the title, artist, album, cover art, duration, and playback position when the streamer provides them. It can play or resume, pause, stop, skip tracks, and seek within a track; the available controls depend on the active source. For example, Spotify Connect pauses and keeps the session when it receives Stop. The state attributes `audio_format`, `sample_rate_hz`, `bit_depth`, and `bit_rate_bps` describe what the streamer reports for the stream; they do not measure the digital output after resampling.
 

@@ -83,9 +83,20 @@ class PrimarePlayback(CoordinatorEntity, MediaPlayerEntity):
         self._cancel_refresh = None
         self._cancel_retry = None
         self._listening = False
-        self._attr_name = f'{entry.data["device_name"]} Playback'
+        device_name = entry.data["device_name"].strip()
+        self._playback_name = f"{device_name} Playback"
+        self._attr_name = (
+            self._playback_name
+            if self._playback_name.casefold().startswith("primare ")
+            else f"Primare {self._playback_name}"
+        )
         self._attr_unique_id = entry.entry_id
         self._attr_supported_features = MediaPlayerEntityFeature(0)
+
+    @property
+    def suggested_object_id(self) -> str:
+        # Keep the entity ID convention when adding the brand to the name.
+        return self._playback_name
 
     async def async_added_to_hass(self):
         await super().async_added_to_hass()
