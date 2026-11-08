@@ -1,0 +1,13 @@
+{
+  "options": {
+    "step": {
+      "init": {
+        "title": "Primare playback status",
+        "description": "Playback status has been verified on the NP5 Prisma MK2.",
+        "data": {
+          "playback_status": "Enable local media player"
+        }
+      }
+    }
+  }
+}

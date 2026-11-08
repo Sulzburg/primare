@@ -42,7 +42,7 @@ Unofficial HA Custom Integration for Primare devices.
 # Manual Installation
 
 1. Navigate to the [Primare](https://github.com/Sulzburg/primare/tree/main/custom_components/primare) directory.
-1. Copy the `primare` folder (including all 8 files) to your Home Assistant `/custom_components/` directory or use the [primare.zip](https://github.com/Sulzburg/primare/blob/5918922bf769a04a254f4ffbd496d1db2365e494/primare.zip) file and unpack it to your `custom_components/`folder. If custom_components does not exist, create it.
+1. Copy the entire `primare` folder, including subfolders, to your Home Assistant `/custom_components/` directory. The historical ZIP does not include the playback platform. If custom_components does not exist, create it.
 1. Restart Home Assistant.
 1. Just go to `Configuration` -> `Integrations` -> `Add Integration` and search for `Primare`.
 1. You will be asked for the <B>fixed IP address</B> of your Primare device.
@@ -57,6 +57,14 @@ Unofficial HA Custom Integration for Primare devices.
  - select.`name`_dsp_mode.
 
 That's it.
+
+## Optional local playback status
+
+In **Settings → Devices & services → Primare → Configure**, turn on **Enable local media player**. Changing this option reloads the integration automatically. This adds a local media player named `Primare <device name> Playback` for the existing entry. You can use its `playing` state in an automation, including when someone starts Spotify Connect using their own account.
+
+The player listens for updates from the streamer and checks the connection once a minute. The entity reports the title, artist, album, cover art, duration, and playback position when the streamer provides them. It can play or resume, pause, stop, skip tracks, and seek within a track; the available controls depend on the active source. For example, Spotify Connect pauses and keeps the session when it receives Stop. The state attributes `audio_format`, `sample_rate_hz`, `bit_depth`, and `bit_rate_bps` describe what the streamer reports for the stream; they do not measure the digital output after resampling.
+
+Verified with Spotify Connect on an NP5 Prisma MK2. The feature uses the streamer's local LUCI protocol on TCP port 7777; it is off by default because other models or firmware may not expose the same data. Turning the option off removes the playback entity; turn it back on before using that entity in an automation. Playback status does not require Spotify credentials and does not change how the existing Primare controls work.
 
 <hr>
 

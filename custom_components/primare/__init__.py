@@ -1,12 +1,15 @@
 # custom_components/primare/__init__.py
 
+import homeassistant.helpers.config_validation as cv
 from .coordinator import PrimareDataCoordinator
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 
 from .const import DOMAIN, INPUT_MAPS
 
-PLATFORMS = ["switch", "number", "select"]  # media_player ggf. aktivieren
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+PLATFORMS = ["switch", "number", "select", "media_player"]
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Basis-Setup, nur erforderlich für die Registrierung der Integration."""
@@ -36,4 +39,18 @@ async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> b
     }
 
     await hass.config_entries.async_forward_entry_setups(config_entry, PLATFORMS)
+    config_entry.async_on_unload(config_entry.add_update_listener(_async_update_listener))
     return True
+
+
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    if not await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
+        return False
+
+    data = hass.data[DOMAIN].pop(entry.entry_id)
+    await data["coordinator"].async_stop()
+    return True
+
+
+async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    await hass.config_entries.async_reload(entry.entry_id)

@@ -1,6 +1,7 @@
 # custom_components/primare/const.py
 
 DOMAIN = "primare"
+CONF_PLAYBACK_STATUS = "playback_status"
 
 # Eingangsliste je Gerätetyp
 INPUT_MAPS = {
