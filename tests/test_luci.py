@@ -285,6 +285,22 @@ class LuciTest(unittest.IsolatedAsyncioTestCase):
         await self.writer.drain()
         self.assertEqual(await asyncio.wait_for(updates.get(), 3), luci.Playback(1))
 
+    async def test_unexpected_reader_failure_disconnects_and_notifies(self):
+        updates = asyncio.Queue()
+        self.client.subscribe(updates.put_nowait)
+        await self.client.async_read()
+        with self.assertLogs(luci.__name__, "WARNING"), patch.object(
+            luci, "_playback", side_effect=RuntimeError("boom")
+        ):
+            self.writer.write(frame(luci.PLAY_VIEW, b"{}", 0))
+            await self.writer.drain()
+            error = await asyncio.wait_for(updates.get(), 1)
+        self.assertIsInstance(error, RuntimeError)
+        self.assertEqual(str(error), "boom")
+        self.assertFalse(self.client.connected)
+        self.assertEqual((await self.client.async_read()).state, 0)
+        self.assertEqual(self.connections, 2)
+
     async def test_disconnect_notifies_and_next_read_opens_new_session(self):
         updates = asyncio.Queue()
         self.client.subscribe(updates.put_nowait)

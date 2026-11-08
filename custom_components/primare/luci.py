@@ -263,7 +263,13 @@ class LuciPlaybackClient:
                 if size > MAX_PAYLOAD:
                     raise ValueError("Oversized LUCI frame")
                 self._dispatch(box, status, await reader.readexactly(size))
-        except (OSError, EOFError, ValueError) as err:
+        except asyncio.CancelledError:
+            raise
+        except Exception as err:
+            if isinstance(err, (OSError, EOFError, ValueError)):
+                _LOGGER.debug("LUCI reader disconnected: %s", err)
+            else:
+                _LOGGER.warning("Unexpected LUCI reader failure", exc_info=True)
             for reply in self._replies.values():
                 if not reply.done():
                     reply.set_exception(err)
