@@ -172,28 +172,16 @@ class LuciTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.connections, 1)
         self.assertEqual(self.requests.count((2, luci.TRANSPORT, b"RESUME")), 1)
 
-    async def test_transport_without_ack_reuses_session_after_grace(self):
-        self.command_reply = b""
-        with patch.object(luci, "ACK_GRACE", 0.05), patch.object(luci, "ACK_TIMEOUT", 0.03):
-            await self.client.async_transport("NEXT")
-            await asyncio.sleep(0.07)
-            await self.client.async_read()
-            await self.client.async_transport("PREV")
-        self.assertEqual(self.connections, 1)
-        self.assertEqual(
-            [payload for _, box, payload in self.requests if box == luci.TRANSPORT],
-            [b"NEXT", b"PREV"],
-        )
-
-    async def test_transport_without_ack_reconnects_within_grace(self):
+    async def test_transport_without_ack_reuses_push_session(self):
         self.command_reply = b""
         with patch.object(luci, "ACK_TIMEOUT", 0.03):
             await self.client.async_transport("NEXT")
-            await self.client.async_transport("RESUME")
-        self.assertEqual(self.connections, 2)
+            await self.client.async_read()
+            await self.client.async_transport("NEXT")
+        self.assertEqual(self.connections, 1)
         self.assertEqual(
             [payload for _, box, payload in self.requests if box == luci.TRANSPORT],
-            [b"NEXT", b"RESUME"],
+            [b"NEXT", b"NEXT"],
         )
 
     async def test_first_command_waits_after_registration(self):

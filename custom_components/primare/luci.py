@@ -21,7 +21,6 @@ REPLY = 1
 MAX_PAYLOAD = 5120
 REGISTER_SETTLE = 0.1
 ACK_TIMEOUT = 0.5
-ACK_GRACE = 3
 PUSH_SETTLE = 0.15
 TRACK_GAP = 2.0
 _BUFFERING_STATES = (3, 4, 5)
@@ -155,7 +154,6 @@ class LuciPlaybackClient:
         self._pending_state: int | None = None
         self._syncing = False
         self._stopping = False
-        self._transport_ack_deadline: float | None = None
 
     @property
     def connected(self) -> bool:
@@ -185,7 +183,6 @@ class LuciPlaybackClient:
         self._state = self._metadata = self._position = self._last_snapshot = None
         self._clear_position_push()
         self._last_view_push = None
-        self._transport_ack_deadline = None
         self._position_query_supported = True
         if writer is not None:
             writer.close()
@@ -269,8 +266,6 @@ class LuciPlaybackClient:
                 _LOGGER.debug("Ignoring malformed LUCI push for box %#04x: %s", box, err)
             return
 
-        if box == TRANSPORT:
-            self._transport_ack_deadline = None
         if status == 3 and box == 0:
             # The NP5 uses box zero when a request arrives before registration.
             reply = next(iter(self._replies.values()), None)
@@ -462,14 +457,7 @@ class LuciPlaybackClient:
             raise ValueError("Unsupported LUCI transport command")
 
         async with self._lock:
-            loop = asyncio.get_running_loop()
             try:
-                if self._transport_ack_deadline is not None:
-                    if loop.time() < self._transport_ack_deadline:
-                        # During the grace period, an old acknowledgement
-                        # could be mistaken for a reply to the new command.
-                        await self._disconnect()
-                    self._transport_ack_deadline = None
                 await self._connect()
                 if command == "SEEK":
                     self._clear_position_push()
@@ -480,7 +468,8 @@ class LuciPlaybackClient:
                 except LuciRefused as err:
                     raise LuciRefused("LUCI transport command refused") from err
                 except TimeoutError:
-                    self._transport_ack_deadline = loop.time() + ACK_GRACE
+                    # Acks normally arrive within milliseconds, and the NP5 can omit them.
+                    # Keep the push session rather than reconnect to rule out a late ack.
                     _LOGGER.debug("No LUCI acknowledgement for %s", command)
             except LuciRefused:
                 raise
