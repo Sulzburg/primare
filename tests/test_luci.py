@@ -283,6 +283,43 @@ class LuciTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await self.client.async_read()).state, 0)
         self.assertEqual(self.connections, 2)
 
+    async def test_short_disconnect_retains_track_gap_filter(self):
+        updates = asyncio.Queue()
+        self.client.subscribe(updates.put_nowait)
+        self.play_view["TrackName"] = "A"
+        await self.client.async_read()
+        self.writer.close()
+        self.assertIsInstance(await asyncio.wait_for(updates.get(), 1), EOFError)
+
+        self.state = b"1"
+        snapshot = await self.client.async_read()
+        self.assertEqual((snapshot.state, snapshot.title), (0, "A"))
+        self.writer.write(frame(luci.PLAY_STATE, b"1", 0) + frame(luci.PLAY_STATE, b"5", 0))
+        await self.writer.drain()
+        await asyncio.sleep(luci.PUSH_SETTLE * 2)
+        self.assertTrue(updates.empty())
+
+        self.writer.write(
+            frame(luci.PLAY_VIEW, b'{"Window CONTENTS":{"TrackName":"B"}}', 0)
+            + frame(luci.PLAY_STATE, b"0", 0)
+        )
+        await self.writer.drain()
+        snapshot = await asyncio.wait_for(updates.get(), 1)
+        self.assertEqual((snapshot.state, snapshot.title), (0, "B"))
+        self.assertTrue(updates.empty())
+
+    async def test_long_disconnect_discards_previous_track(self):
+        updates = asyncio.Queue()
+        self.client.subscribe(updates.put_nowait)
+        await self.client.async_read()
+        self.writer.close()
+        self.assertIsInstance(await asyncio.wait_for(updates.get(), 1), EOFError)
+        self.state = b"1"
+        with patch.object(luci, "STATE_KEEP_SECONDS", 0.05):
+            await asyncio.sleep(0.07)
+            self.assertEqual(await self.client.async_read(), luci.Playback(1))
+        self.assertEqual(self.connections, 2)
+
     async def test_shutdown_closes_and_prevents_reconnection(self):
         await self.client.async_read()
         await self.client.async_shutdown()

@@ -23,6 +23,7 @@ REGISTER_SETTLE = 0.1
 ACK_TIMEOUT = 0.5
 PUSH_SETTLE = 0.15
 TRACK_GAP = 2.0
+STATE_KEEP_SECONDS = 10
 _BUFFERING_STATES = (3, 4, 5)
 _LOGGER = logging.getLogger(__name__)
 
@@ -149,6 +150,7 @@ class LuciPlaybackClient:
         self._last_view_push: tuple[int, bytes, float] | None = None
         self._position_query_supported = True
         self._last_snapshot: Playback | None = None
+        self._disconnected_at: float | None = None
         self._publish_handle: asyncio.TimerHandle | None = None
         self._transition_handle: asyncio.TimerHandle | None = None
         self._pending_state: int | None = None
@@ -170,6 +172,11 @@ class LuciPlaybackClient:
     async def async_shutdown(self) -> None:
         self._stopping = True
         await self.async_disconnect()
+        self._clear_playback()
+        self._disconnected_at = None
+
+    def _clear_playback(self) -> None:
+        self._state = self._metadata = self._position = self._last_snapshot = None
 
     async def async_disconnect(self) -> None:
         async with self._lock:
@@ -180,11 +187,11 @@ class LuciPlaybackClient:
         self._cancel_publish()
         task, self._reader_task = self._reader_task, None
         writer, self._writer = self._writer, None
-        self._state = self._metadata = self._position = self._last_snapshot = None
         self._clear_position_push()
         self._last_view_push = None
         self._position_query_supported = True
         if writer is not None:
+            self._disconnected_at = asyncio.get_running_loop().time()
             writer.close()
         if task is not None and task is not asyncio.current_task():
             task.cancel()
@@ -230,6 +237,12 @@ class LuciPlaybackClient:
                 )
         except TimeoutError as err:
             raise TimeoutError("LUCI TCP connection timed out") from err
+        if (
+            self._disconnected_at is not None
+            and asyncio.get_running_loop().time() - self._disconnected_at > STATE_KEEP_SECONDS
+        ):
+            self._clear_playback()
+        self._disconnected_at = None
         self._reader_task = asyncio.create_task(self._read_loop(reader))
         local_ip = self._writer.get_extra_info("sockname")[0]
         await self._request(2, REGISTER, local_ip.encode("ascii"))
