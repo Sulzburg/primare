@@ -6,6 +6,7 @@ from pathlib import Path
 import struct
 import sys
 import unittest
+from unittest.mock import patch
 
 _PATH = Path(__file__).resolve().parents[1] / "custom_components/primare/luci.py"
 _SPEC = importlib.util.spec_from_file_location("primare_test_luci", _PATH)
@@ -26,6 +27,7 @@ class LuciTest(unittest.IsolatedAsyncioTestCase):
         self.state_status = 1
         self.command_reply = frame(luci.TRANSPORT)
         self.requests = []
+        self.request_times = []
         self.connections = 0
         self.writer = None
         self.disconnected = asyncio.Event()
@@ -49,6 +51,7 @@ class LuciTest(unittest.IsolatedAsyncioTestCase):
                 )
                 payload = await reader.readexactly(length)
                 self.requests.append((kind, box, payload))
+                self.request_times.append(asyncio.get_running_loop().time())
                 if box == luci.REGISTER:
                     response = frame(box)
                 elif box == luci.PLAY_STATE:
@@ -125,6 +128,35 @@ class LuciTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await self.client.async_read()).position, 42)
         self.assertEqual(self.connections, 1)
         self.assertEqual(self.requests.count((2, luci.TRANSPORT, b"RESUME")), 1)
+
+    async def test_transport_without_ack_reuses_session_after_grace(self):
+        self.command_reply = b""
+        with patch.object(luci, "ACK_GRACE", 0.05), patch.object(luci, "ACK_TIMEOUT", 0.03):
+            await self.client.async_transport("NEXT")
+            await asyncio.sleep(0.07)
+            await self.client.async_read()
+            await self.client.async_transport("PREV")
+        self.assertEqual(self.connections, 1)
+        self.assertEqual(
+            [payload for _, box, payload in self.requests if box == luci.TRANSPORT],
+            [b"NEXT", b"PREV"],
+        )
+
+    async def test_transport_without_ack_reconnects_within_grace(self):
+        self.command_reply = b""
+        with patch.object(luci, "ACK_TIMEOUT", 0.03):
+            await self.client.async_transport("NEXT")
+            await self.client.async_transport("RESUME")
+        self.assertEqual(self.connections, 2)
+        self.assertEqual(
+            [payload for _, box, payload in self.requests if box == luci.TRANSPORT],
+            [b"NEXT", b"RESUME"],
+        )
+
+    async def test_first_command_waits_after_registration(self):
+        await self.client.async_transport("PLAY")
+        self.assertEqual([box for _, box, _ in self.requests], [luci.REGISTER, luci.TRANSPORT])
+        self.assertGreaterEqual(self.request_times[1] - self.request_times[0], 0.09)
 
     async def test_unexpected_reply_status_and_oversized_frame(self):
         self.state_status = 4

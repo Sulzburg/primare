@@ -19,6 +19,9 @@ PLAY_STATE = 0x33
 SPEAKER = 0x46
 REPLY = 1
 MAX_PAYLOAD = 5120
+REGISTER_SETTLE = 0.1
+ACK_TIMEOUT = 0.5
+ACK_GRACE = 3
 PUSH_SETTLE = 0.15
 TRACK_GAP = 2.0
 POSITION_PUSH_MAX_AGE = 3.0
@@ -150,7 +153,7 @@ class LuciPlaybackClient:
         self._pending_state: int | None = None
         self._syncing = False
         self._stopping = False
-        self._transport_ack_pending = False
+        self._transport_ack_deadline: float | None = None
 
     @property
     def connected(self) -> bool:
@@ -179,7 +182,7 @@ class LuciPlaybackClient:
         writer, self._writer = self._writer, None
         self._state = self._metadata = self._position = self._last_snapshot = None
         self._last_position_push = None
-        self._transport_ack_pending = False
+        self._transport_ack_deadline = None
         self._position_query_supported = True
         if writer is not None:
             writer.close()
@@ -230,6 +233,7 @@ class LuciPlaybackClient:
         self._reader_task = asyncio.create_task(self._read_loop(reader))
         local_ip = self._writer.get_extra_info("sockname")[0]
         await self._request(2, REGISTER, local_ip.encode("ascii"))
+        await asyncio.sleep(REGISTER_SETTLE)
         _LOGGER.debug("Registered LUCI session")
 
     async def _read_loop(self, reader: asyncio.StreamReader) -> None:
@@ -263,7 +267,7 @@ class LuciPlaybackClient:
             return
 
         if box == TRANSPORT:
-            self._transport_ack_pending = False
+            self._transport_ack_deadline = None
         if status == 3 and box == 0:
             # The NP5 uses box zero when a request arrives before registration.
             reply = next(iter(self._replies.values()), None)
@@ -431,18 +435,23 @@ class LuciPlaybackClient:
             raise ValueError("Unsupported LUCI transport command")
 
         async with self._lock:
+            loop = asyncio.get_running_loop()
             try:
-                if self._transport_ack_pending:
-                    # Replies identify the mailbox, not the command. Don't let
-                    # an acknowledgement for a previous command match this one.
-                    await self._disconnect()
+                if self._transport_ack_deadline is not None:
+                    if loop.time() < self._transport_ack_deadline:
+                        # During the grace period, an old acknowledgement
+                        # could be mistaken for a reply to the new command.
+                        await self._disconnect()
+                    self._transport_ack_deadline = None
                 await self._connect()
                 try:
-                    await self._request(2, TRANSPORT, payload.encode("ascii"), timeout=1)
+                    await self._request(
+                        2, TRANSPORT, payload.encode("ascii"), timeout=ACK_TIMEOUT
+                    )
                 except LuciRefused as err:
                     raise LuciRefused("LUCI transport command refused") from err
                 except TimeoutError:
-                    self._transport_ack_pending = True
+                    self._transport_ack_deadline = loop.time() + ACK_GRACE
                     _LOGGER.debug("No LUCI acknowledgement for %s", command)
             except LuciRefused:
                 raise
