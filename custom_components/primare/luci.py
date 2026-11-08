@@ -283,18 +283,22 @@ class LuciPlaybackClient:
                 self._listener(err)
 
     def _dispatch(self, box: int, status: int, payload: bytes) -> None:
-        if status == 0:
+        if status == 3 and box == 0:
+            # The NP5 uses box zero when a request arrives before registration.
+            reply = next(iter(self._replies.values()), None)
+        else:
+            reply = self._replies.get(box)
+        if status == 0 or (
+            status == REPLY
+            and (reply is None or reply.done())
+            and box in (PLAY_STATE, PLAY_VIEW, PLAY_VIEW_PUSH, POSITION, SPEAKER)
+        ):
             try:
                 self._apply_frame(box, payload, pushed=True)
             except ValueError as err:
                 _LOGGER.debug("Ignoring malformed LUCI push for box %#04x: %s", box, err)
             return
 
-        if status == 3 and box == 0:
-            # The NP5 uses box zero when a request arrives before registration.
-            reply = next(iter(self._replies.values()), None)
-        else:
-            reply = self._replies.get(box)
         if reply is None or reply.done():
             return
         try:

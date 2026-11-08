@@ -225,6 +225,15 @@ class LuciTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((snapshot.state, snapshot.title, snapshot.position), (2, "Track", 1.25))
         self.assertEqual(len(self.requests), request_count)
 
+    async def test_status_one_playback_frame_without_query_is_a_push(self):
+        updates = asyncio.Queue()
+        self.client.subscribe(updates.put_nowait)
+        await self.client.async_read()
+        self.writer.write(frame(luci.PLAY_STATE, b"2", status=1))
+        await self.writer.drain()
+        snapshot = await asyncio.wait_for(updates.get(), 1)
+        self.assertEqual(snapshot.state, 2)
+
     async def test_track_gap_does_not_publish_an_idle_or_buffering_state(self):
         updates = asyncio.Queue()
         self.client.subscribe(updates.put_nowait)
