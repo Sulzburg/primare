@@ -58,6 +58,10 @@ class Playback:
     can_previous: bool = False
     can_seek: bool = False
 
+    @property
+    def track(self) -> tuple:
+        return self.title, self.artist, self.album, self.duration
+
 
 def _text(value):
     return (value.strip() or None) if isinstance(value, str) else None
@@ -348,7 +352,7 @@ class LuciPlaybackClient:
         elif box in (PLAY_VIEW, PLAY_VIEW_PUSH):
             # PlayView's state can be stale after a Spotify pause. Use 0x33.
             metadata = _playback(payload, 0)
-            track_changed = self._metadata is not None and self._track(metadata) != self._track(self._metadata)
+            track_changed = self._metadata is not None and metadata.track != self._metadata.track
             if pushed:
                 now = asyncio.get_running_loop().time()
                 last = self._last_view_push
@@ -437,10 +441,6 @@ class LuciPlaybackClient:
                     self._position_query_supported = False
         if self._has_usable_position_push(read_started):
             self._position = self._pushed_position
-
-    @staticmethod
-    def _track(playback: Playback) -> tuple:
-        return playback.title, playback.artist, playback.album, playback.duration
 
     def _cancel_transition(self) -> None:
         if self._transition_handle is not None:

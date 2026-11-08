@@ -239,10 +239,7 @@ class PrimarePlayback(CoordinatorEntity, MediaPlayerEntity):
         self._update_position(playback, previous_state, now)
 
     def _update_position(self, playback, previous_state, now):
-        track = (
-            (playback.title, playback.artist, playback.album, playback.duration)
-            if playback else None
-        )
+        track = playback.track if playback else None
         position = playback.position if playback else None
         unchanged_track_and_state = track == self._track and self._attr_state == previous_state
         if unchanged_track_and_state:
