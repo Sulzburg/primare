@@ -1,5 +1,6 @@
 {
   "name": "Primare",
+  "homeassistant": "2024.12.0",
   "domain": "primare",
   "documentation": "https://github.com/Sulzburg/primare/blob/main/README.md",
   "codeowners": ["@GuidoL"],
