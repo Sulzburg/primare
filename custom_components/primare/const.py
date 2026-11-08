@@ -54,7 +54,3 @@ DSP_MAP = {
 }
 
 DSP_MAP_INV = {v: k for k, v in DSP_MAP.items()}
-
-# Diese beiden werden dynamisch beim Setup gesetzt:
-INPUT_MAP = {}
-INPUT_MAP_INV = {}
