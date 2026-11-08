@@ -27,6 +27,7 @@ class LuciTest(unittest.IsolatedAsyncioTestCase):
         self.play_view = {"TrackName": "Track"}
         self.position_reply = frame(luci.POSITION, b"1000")
         self.state_status = 1
+        self.register_status = 1
         self.command_reply = frame(luci.TRANSPORT)
         self.requests = []
         self.request_times = []
@@ -55,7 +56,7 @@ class LuciTest(unittest.IsolatedAsyncioTestCase):
                 self.requests.append((kind, box, payload))
                 self.request_times.append(asyncio.get_running_loop().time())
                 if box == luci.REGISTER:
-                    response = frame(box)
+                    response = frame(box, status=self.register_status)
                 elif box == luci.PLAY_STATE:
                     response = frame(box, self.state, self.state_status)
                     if self.push is not None:
@@ -152,6 +153,16 @@ class LuciTest(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone((await self.client.async_read()).position)
         self.assertEqual(self.connections, 1)
         self.assertEqual(sum(box == luci.POSITION for _, box, _ in self.requests), 1)
+
+    async def test_refused_registration_closes_socket_and_next_read_reconnects(self):
+        self.register_status = 2
+        with self.assertRaisesRegex(luci.LuciRefused, "box 0x03"):
+            await self.client.async_transport("NEXT")
+        self.assertFalse(self.client.connected)
+        self.assertEqual([box for _, box, _ in self.requests], [luci.REGISTER])
+        self.register_status = 1
+        self.assertEqual((await self.client.async_read()).state, 0)
+        self.assertEqual(self.connections, 2)
 
     async def test_transport_refusal_surfaces_and_command_is_not_repeated(self):
         self.command_reply = frame(luci.TRANSPORT, status=2)
@@ -319,6 +330,23 @@ class LuciTest(unittest.IsolatedAsyncioTestCase):
             await asyncio.sleep(0.07)
             self.assertEqual(await self.client.async_read(), luci.Playback(1))
         self.assertEqual(self.connections, 2)
+
+    async def test_refused_registration_does_not_extend_cached_playback(self):
+        updates = asyncio.Queue()
+        self.client.subscribe(updates.put_nowait)
+        await self.client.async_read()
+        self.writer.close()
+        self.assertIsInstance(await asyncio.wait_for(updates.get(), 1), EOFError)
+        with patch.object(luci, "STATE_KEEP_SECONDS", 0.3):
+            await asyncio.sleep(0.17)
+            self.register_status = 2
+            with self.assertRaises(luci.LuciRefused):
+                await self.client.async_read()
+            await asyncio.sleep(0.17)
+            self.register_status = 1
+            self.state = b"1"
+            self.assertEqual(await self.client.async_read(), luci.Playback(1))
+        self.assertEqual(self.connections, 3)
 
     async def test_shutdown_closes_and_prevents_reconnection(self):
         await self.client.async_read()

@@ -191,7 +191,8 @@ class LuciPlaybackClient:
         self._last_view_push = None
         self._position_query_supported = True
         if writer is not None:
-            self._disconnected_at = asyncio.get_running_loop().time()
+            if self._disconnected_at is None:
+                self._disconnected_at = asyncio.get_running_loop().time()
             writer.close()
         if task is not None and task is not asyncio.current_task():
             task.cancel()
@@ -242,11 +243,15 @@ class LuciPlaybackClient:
             and asyncio.get_running_loop().time() - self._disconnected_at > STATE_KEEP_SECONDS
         ):
             self._clear_playback()
-        self._disconnected_at = None
         self._reader_task = asyncio.create_task(self._read_loop(reader))
         local_ip = self._writer.get_extra_info("sockname")[0]
-        await self._request(2, REGISTER, local_ip.encode("ascii"))
-        await asyncio.sleep(REGISTER_SETTLE)
+        try:
+            await self._request(2, REGISTER, local_ip.encode("ascii"))
+            await asyncio.sleep(REGISTER_SETTLE)
+        except (OSError, EOFError, ValueError, asyncio.CancelledError):
+            await self._disconnect()
+            raise
+        self._disconnected_at = None
         _LOGGER.debug("Registered LUCI session")
 
     async def _read_loop(self, reader: asyncio.StreamReader) -> None:
@@ -470,22 +475,19 @@ class LuciPlaybackClient:
             raise ValueError("Unsupported LUCI transport command")
 
         async with self._lock:
+            await self._connect()
+            if command == "SEEK":
+                self._clear_position_push()
             try:
-                await self._connect()
-                if command == "SEEK":
-                    self._clear_position_push()
-                try:
-                    await self._request(
-                        2, TRANSPORT, payload.encode("ascii"), timeout=ACK_TIMEOUT
-                    )
-                except LuciRefused as err:
-                    raise LuciRefused("LUCI transport command refused") from err
-                except TimeoutError:
-                    # Acks normally arrive within milliseconds, and the NP5 can omit them.
-                    # Keep the push session rather than reconnect to rule out a late ack.
-                    _LOGGER.debug("No LUCI acknowledgement for %s", command)
-            except LuciRefused:
-                raise
+                await self._request(
+                    2, TRANSPORT, payload.encode("ascii"), timeout=ACK_TIMEOUT
+                )
+            except LuciRefused as err:
+                raise LuciRefused("LUCI transport command refused") from err
+            except TimeoutError:
+                # Acks normally arrive within milliseconds, and the NP5 can omit them.
+                # Keep the push session rather than reconnect to rule out a late ack.
+                _LOGGER.debug("No LUCI acknowledgement for %s", command)
             except (OSError, EOFError, ValueError, asyncio.CancelledError):
                 await self._disconnect()
                 raise
