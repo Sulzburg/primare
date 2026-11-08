@@ -120,7 +120,9 @@ class LuciTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((await self.client.async_read()).position, 30)
         self.push = None
         self.play_view["Current_time"] = 31000
-        self.assertEqual((await self.client.async_read()).position, 31)
+        self.position_reply = frame(luci.POSITION, status=2)
+        with patch.object(luci, "POSITION_MAX_AGE", 0):
+            self.assertEqual((await self.client.async_read()).position, 31)
 
     async def test_track_notification_invalidates_paused_position(self):
         self.state = b"2"
@@ -131,9 +133,20 @@ class LuciTest(unittest.IsolatedAsyncioTestCase):
         self.position_reply = frame(luci.POSITION, b"0")
         # A repeated track can have the same title and still start over.
         view = json.dumps({"Window CONTENTS": self.play_view}).encode()
-        self.writer.write(frame(luci.PLAY_VIEW, view, 0))
+        self.writer.write(frame(luci.PLAY_STATE, b"1", 0) + frame(luci.PLAY_VIEW, view, 0))
         await self.writer.drain()
         self.assertEqual((await self.client.async_read()).position, 0)
+
+    async def test_metadata_push_without_track_gap_keeps_paused_position(self):
+        self.state = b"2"
+        self.push = b"30000"
+        self.assertEqual((await self.client.async_read()).position, 30)
+        self.push = None
+        self.play_view["Current_time"] = 0
+        view = json.dumps({"Window CONTENTS": self.play_view}).encode()
+        self.writer.write(frame(luci.PLAY_VIEW, view, 0))
+        await self.writer.drain()
+        self.assertEqual((await self.client.async_read()).position, 30)
 
     async def test_mirrored_play_view_does_not_discard_new_position(self):
         self.state = b"2"
