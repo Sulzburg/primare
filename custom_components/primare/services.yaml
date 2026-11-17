@@ -1,0 +1,224 @@
+volume_up:
+  name: Volume Up
+  description: Increase volume by a number of steps using !1vol.u.
+  fields:
+    device_id:
+      name: Gerät
+      description: Primare-Gerät (empfohlen).
+      required: false
+      selector:
+        device:
+          integration: primare
+    entry_id:
+      name: Entry ID
+      description: 'Alternativ: entry_id des Geräts (alte Variante).'
+      required: false
+      example: 8e2c1a1b1c23456789abcdef01234567
+      selector:
+        text: null
+    device_name:
+      name: Device name
+      description: 'Alternativ: Name des Geräts (alte Variante).'
+      required: false
+      example: SP25
+      selector:
+        text: null
+    times:
+      name: Times
+      description: Number of steps to increase (1–10).
+      required: false
+      default: 1
+      selector:
+        number:
+          min: 1
+          max: 10
+          step: 1
+          mode: box
+volume_down:
+  name: Volume Down
+  description: Decrease volume by a number of steps using !1vol.d.
+  fields:
+    device_id:
+      name: Gerät
+      description: Primare-Gerät (empfohlen).
+      required: false
+      selector:
+        device:
+          integration: primare
+    entry_id:
+      name: Entry ID
+      description: 'Alternativ: entry_id des Geräts (alte Variante).'
+      required: false
+      example: 8e2c1a1b1c23456789abcdef01234567
+      selector:
+        text: null
+    device_name:
+      name: Device name
+      description: 'Alternativ: Name des Geräts (alte Variante).'
+      required: false
+      example: Pre35 Wohnzimmer
+      selector:
+        text: null
+    times:
+      name: Times
+      description: Number of steps to decrease (1–10).
+      required: false
+      default: 1
+      selector:
+        number:
+          min: 1
+          max: 10
+          step: 1
+          mode: box
+volume_relative:
+  name: Volume Relative
+  description: Change volume by a positive/negative delta (steps or absolute).
+  fields:
+    device_id:
+      name: Gerät
+      description: Primare-Gerät (empfohlen).
+      required: false
+      selector:
+        device:
+          integration: primare
+    entry_id:
+      name: Entry ID
+      description: 'Alternativ: entry_id des Geräts (alte Variante).'
+      required: false
+      example: 8e2c1a1b1c23456789abcdef01234567
+      selector:
+        text: null
+    device_name:
+      name: Device name
+      description: 'Alternativ: Name des Geräts (alte Variante).'
+      required: false
+      example: SP25
+      selector:
+        text: null
+    delta:
+      name: Delta
+      description: Positive = louder, negative = quieter.
+      required: true
+      example: -3
+      selector:
+        number:
+          min: -100
+          max: 100
+          step: 1
+          mode: box
+    mode:
+      name: Mode
+      description: 'steps: uses !1vol.u/d; absolute: sends !1vol.NN with current+delta.'
+      required: false
+      default: steps
+      selector:
+        select:
+          options:
+          - steps
+          - absolute
+    step_delay_ms:
+      name: Step delay (ms)
+      description: Delay between step commands (only for mode=steps).
+      required: false
+      default: 40
+      selector:
+        number:
+          min: 0
+          max: 500
+          step: 10
+          mode: box
+          unit_of_measurement: ms
+volume_fade:
+  name: Volume Fade
+  description: Von der aktuellen auf die Ziel-Lautstärke überblenden. Eine laufende
+    Überblendung desselben Geräts wird abgebrochen.
+  fields:
+    device_id:
+      name: Gerät
+      description: Primare-Gerät (empfohlen).
+      required: false
+      selector:
+        device:
+          integration: primare
+    entry_id:
+      name: Entry ID
+      description: 'Alternativ: entry_id des Geräts (alte Variante).'
+      required: false
+      example: 8e2c1a1b1c23456789abcdef01234567
+      selector:
+        text: null
+    device_name:
+      name: Device name
+      description: 'Alternativ: Name des Geräts (alte Variante).'
+      required: false
+      example: SP25
+      selector:
+        text: null
+    target:
+      name: Target volume
+      description: Ziel-Lautstärke (0–99). Standard 0 (ausblenden).
+      required: false
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 99
+          step: 1
+          mode: slider
+    duration_ms:
+      name: Duration (ms)
+      description: Total fade duration in milliseconds.
+      required: false
+      default: 1200
+      selector:
+        number:
+          min: 1
+          max: 60000
+          step: 50
+          mode: box
+          unit_of_measurement: ms
+    easing:
+      name: Easing
+      description: Fade curve.
+      required: false
+      default: linear
+      selector:
+        select:
+          options:
+          - linear
+          - ease_in
+          - ease_out
+          - ease_in_out
+    mode:
+      name: Mode
+      description: 'absolute: send !1vol.NN steps; steps: use !1vol.u/d for each substep.'
+      required: false
+      default: absolute
+      selector:
+        select:
+          options:
+          - absolute
+          - steps
+    steps:
+      name: Steps
+      description: Number of interpolation steps (1–100).
+      required: false
+      default: 10
+      selector:
+        number:
+          min: 1
+          max: 100
+          step: 1
+          mode: box
+    step_delay_ms:
+      name: Step delay (ms, steps mode)
+      description: Only used when mode=steps (delay between !1vol.u/d).
+      required: false
+      default: 40
+      selector:
+        number:
+          min: 0
+          max: 500
+          step: 10
+          mode: box
+          unit_of_measurement: ms

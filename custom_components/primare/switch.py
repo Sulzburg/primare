@@ -1,86 +1,57 @@
-import logging
+"""Power- und Mute-Schalter (bleiben für bestehende Automationen erhalten)."""
+
+from __future__ import annotations
+
 from homeassistant.components.switch import SwitchEntity
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-_LOGGER = logging.getLogger(__name__)
+from . import PrimareConfigEntry
+from .entity import PrimareEntity
 
-async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities):
-    entry_data = hass.data["primare"].get(config_entry.entry_id)
-    if not entry_data:
-        raise RuntimeError(f"Kein Eintrag für {config_entry.entry_id} gefunden")
 
-    coordinator = entry_data["coordinator"]
-    device_name = entry_data["device_name"]
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: PrimareConfigEntry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
+) -> None:
+    entities: list[SwitchEntity] = [PrimarePowerSwitch(entry)]
+    if entry.runtime_data.profile.has_mute:
+        entities.append(PrimareMuteSwitch(entry))
+    async_add_entities(entities)
 
-    async_add_entities([
-        PrimareMuteSwitch(coordinator, device_name),
-        PrimarePowerSwitch(coordinator, device_name),
-    ])
 
-class PrimareMuteSwitch(SwitchEntity):
-    def __init__(self, coordinator, device_name: str):
-        self._coordinator = coordinator
-        self._device_name = device_name
-        self._unique_id = f"primare_{device_name.lower().replace(' ', '_')}_mute_switch"
-        self._attr_name = f"{device_name} Mute"
-        self._remove_listener = None
+class PrimarePowerSwitch(PrimareEntity, SwitchEntity):
+    _attr_name = "Power"
+    _attr_icon = "mdi:power"
 
-    async def async_added_to_hass(self) -> None:
-        self._remove_listener = self._coordinator.async_add_listener(self.async_write_ha_state)
-
-    async def async_will_remove_from_hass(self) -> None:
-        if self._remove_listener:
-            self._remove_listener()
+    def __init__(self, entry: PrimareConfigEntry) -> None:
+        super().__init__(entry, "power_switch")
 
     @property
-    def unique_id(self) -> str:
-        return self._unique_id
+    def is_on(self) -> bool | None:
+        return self._client.power
+
+    async def async_turn_on(self, **kwargs) -> None:
+        await self._send(self._client.set_power(True))
+
+    async def async_turn_off(self, **kwargs) -> None:
+        await self._send(self._client.set_power(False))
+
+
+class PrimareMuteSwitch(PrimareEntity, SwitchEntity):
+    _attr_name = "Mute"
+    _attr_icon = "mdi:volume-off"
+
+    def __init__(self, entry: PrimareConfigEntry) -> None:
+        super().__init__(entry, "mute_switch")
 
     @property
-    def is_on(self):
-        return self._coordinator.data.get("mute") == 1
+    def is_on(self) -> bool | None:
+        return self._client.mute
 
-    @property
-    def icon(self) -> str:
-        return "mdi:volume-off"
+    async def async_turn_on(self, **kwargs) -> None:
+        await self._send(self._client.set_mute(True))
 
-    async def async_turn_on(self, **kwargs):
-        await self._coordinator.async_send_command("!1mut.1")
-
-    async def async_turn_off(self, **kwargs):
-        await self._coordinator.async_send_command("!1mut.0")
-
-
-class PrimarePowerSwitch(SwitchEntity):
-    def __init__(self, coordinator, device_name: str):
-        self._coordinator = coordinator
-        self._device_name = device_name
-        self._unique_id = f"primare_{device_name.lower().replace(' ', '_')}_power_switch"
-        self._attr_name = f"{device_name} Power"
-        self._remove_listener = None
-
-    async def async_added_to_hass(self) -> None:
-        self._remove_listener = self._coordinator.async_add_listener(self.async_write_ha_state)
-
-    async def async_will_remove_from_hass(self) -> None:
-        if self._remove_listener:
-            self._remove_listener()
-
-    @property
-    def unique_id(self) -> str:
-        return self._unique_id
-
-    @property
-    def is_on(self):
-        return self._coordinator.data.get("power") == 1
-
-    @property
-    def icon(self) -> str:
-        return "mdi:power"
-
-    async def async_turn_on(self, **kwargs):
-        await self._coordinator.async_send_command("!1pow.1")
-
-    async def async_turn_off(self, **kwargs):
-        await self._coordinator.async_send_command("!1pow.0")
+    async def async_turn_off(self, **kwargs) -> None:
+        await self._send(self._client.set_mute(False))

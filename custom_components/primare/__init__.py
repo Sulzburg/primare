@@ -1,39 +1,125 @@
-# custom_components/primare/__init__.py
+"""Primare-Integration (SP25 / SPA25, Pre35 & Co., NP5) über TCP/IP."""
 
-from .coordinator import PrimareDataCoordinator
-from homeassistant.core import HomeAssistant
+from __future__ import annotations
+
+from dataclasses import dataclass
+import logging
+
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import Platform
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.helpers import config_validation as cv, entity_registry as er
+from homeassistant.helpers.typing import ConfigType
 
-from .const import DOMAIN, INPUT_MAPS
+from .client import DEFAULT_PORT, VOLUME_MAX, PrimareClient
+from .const import (
+    CONF_DEVICE_TYPE,
+    CONF_HOST,
+    CONF_INPUTS,
+    CONF_MAX_VOLUME,
+    CONF_NAME,
+    CONF_PORT,
+    DEFAULT_INPUTS,
+    DOMAIN,
+    TYPE_MULTICHANNEL,
+    DeviceProfile,
+    parse_inputs,
+)
+from .services import async_setup_services
 
-PLATFORMS = ["switch", "number", "select"]  # media_player ggf. aktivieren
+_LOGGER = logging.getLogger(__name__)
 
-async def async_setup(hass: HomeAssistant, config: dict) -> bool:
-    """Basis-Setup, nur erforderlich für die Registrierung der Integration."""
+PLATFORMS = [
+    Platform.MEDIA_PLAYER,
+    Platform.SWITCH,
+    Platform.NUMBER,
+    Platform.SELECT,
+    Platform.SENSOR,
+    Platform.BUTTON,
+]
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+
+@dataclass
+class PrimareRuntime:
+    client: PrimareClient
+    profile: DeviceProfile
+
+
+type PrimareConfigEntry = ConfigEntry[PrimareRuntime]
+
+
+def build_profile(entry: ConfigEntry) -> DeviceProfile:
+    device_type = entry.options.get(
+        CONF_DEVICE_TYPE, entry.data.get(CONF_DEVICE_TYPE, TYPE_MULTICHANNEL)
+    )
+    inputs = DEFAULT_INPUTS.get(device_type, {})
+    if CONF_INPUTS in entry.options:
+        try:
+            inputs = parse_inputs(entry.options[CONF_INPUTS])
+        except ValueError:
+            _LOGGER.warning("%s: Eingangsliste in den Optionen ungültig – nutze Vorgabe", entry.title)
+    return DeviceProfile(device_type, inputs)
+
+
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    async_setup_services(hass)
     return True
 
-async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry) -> bool:
-    ip_address = config_entry.data["ip_address"]
-    device_name = config_entry.data["device_name"]
-    device_type = config_entry.data.get("device_type", "Multichannel")  # Default = SP25
 
-    from . import const
+async def async_setup_entry(hass: HomeAssistant, entry: PrimareConfigEntry) -> bool:
+    profile = build_profile(entry)
+    client = PrimareClient(
+        entry.data[CONF_HOST],
+        entry.data.get(CONF_PORT, DEFAULT_PORT),
+        queries=profile.queries,
+        name=entry.title,
+        max_volume=int(entry.options.get(CONF_MAX_VOLUME, VOLUME_MAX)),
+    )
+    # Kurz auf die erste Verbindung warten, damit Entitäten gleich Werte haben.
+    # Klappt das nicht, laufen die Versuche im Hintergrund weiter und die
+    # Entitäten stehen so lange auf "nicht verfügbar".
+    await client.start(wait=3)
+    entry.runtime_data = PrimareRuntime(client, profile)
+    entry.async_on_unload(entry.add_update_listener(_async_reload))
 
-    # Eingänge je nach Gerätetyp vorbereiten
-    input_map = const.INPUT_MAPS.get(device_type, {})
-    input_map_inv = {v: k for k, v in input_map.items()}
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    return True
 
-    coordinator = PrimareDataCoordinator(ip_address, device_name, hass.loop, hass, config_entry.entry_id)
-    await coordinator.async_start()
 
-    # Speichere alle Daten pro Config Entry
-    hass.data.setdefault(DOMAIN, {})[config_entry.entry_id] = {
-        "coordinator": coordinator,
-        "device_type": device_type,
-        "device_name": device_name,
-        "input_map": input_map,
-        "input_map_inv": input_map_inv,
-    }
+async def async_unload_entry(hass: HomeAssistant, entry: PrimareConfigEntry) -> bool:
+    unloaded = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    if unloaded:
+        await entry.runtime_data.client.stop()
+    return unloaded
 
-    await hass.config_entries.async_forward_entry_setups(config_entry, PLATFORMS)
+
+async def _async_reload(hass: HomeAssistant, entry: PrimareConfigEntry) -> None:
+    await hass.config_entries.async_reload(entry.entry_id)
+
+
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """1.1 → 1.2: unique_id vom Gerätenamen auf die Eintrags-ID umstellen.
+
+    Die Entity-IDs bleiben dabei unverändert; Automationen merken nichts.
+    """
+    if entry.version > 1:
+        return False
+
+    if entry.minor_version < 2:
+        slug = str(entry.data.get(CONF_NAME, entry.title)).lower().replace(" ", "_")
+        old_prefix = f"primare_{slug}_"
+
+        @callback
+        def _migrate(reg_entry: er.RegistryEntry) -> dict[str, str] | None:
+            if reg_entry.unique_id.startswith(old_prefix):
+                suffix = reg_entry.unique_id[len(old_prefix):]
+                return {"new_unique_id": f"{entry.entry_id}_{suffix}"}
+            return None
+
+        await er.async_migrate_entries(hass, entry.entry_id, _migrate)
+        hass.config_entries.async_update_entry(entry, minor_version=2)
+        _LOGGER.info("%s: unique_ids migriert (Version 1.2)", entry.title)
+
     return True

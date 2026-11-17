@@ -1,0 +1,54 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Primare-Gerät hinzufügen",
+        "data": {
+          "ip_address": "IP-Adresse",
+          "port": "Port",
+          "device_name": "Name",
+          "device_type": "Gerätetyp"
+        },
+        "data_description": {
+          "port": "Primare-Standard: 50006",
+          "device_name": "Wird Gerätename und Präfix der Entitäten, z. B. SP25"
+        }
+      },
+      "reconfigure": {
+        "title": "Verbindung ändern",
+        "data": {
+          "ip_address": "IP-Adresse",
+          "port": "Port"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Keine Verbindung zum Gerät. IP-Adresse, Port und Netzwerk-Standby prüfen."
+    },
+    "abort": {
+      "already_configured": "Dieses Gerät ist bereits eingerichtet.",
+      "reconfigure_successful": "Verbindung geändert."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Primare-Optionen",
+        "data": {
+          "device_type": "Gerätetyp",
+          "max_volume": "Maximale Lautstärke",
+          "inputs": "Eingänge / Presets",
+          "playback_status": "Wiedergabe des Prisma-Streamers anzeigen"
+        },
+        "data_description": {
+          "playback_status": "Legt eine Entität „Wiedergabe“ an: Titel, Interpret, Cover, Position sowie Play/Pause/Weiter. Nutzt das LUCI-Protokoll des eingebauten Streamers (Port 7777). Bestätigt auf dem NP5 Prisma MK2; andere Modelle ungetestet. Beitrag von yvos.",
+          "max_volume": "Höher stellt HA nie – egal ob Regler, Sprachbefehl, Automation oder Aktion. 99 = keine Begrenzung. Am Gerät selbst bleibt mehr möglich.",
+          "inputs": "Eine Zeile pro Eingang: Nummer = Name (Nummer 1–17). Leer lassen = keine Eingangsauswahl."
+        }
+      }
+    },
+    "error": {
+      "invalid_inputs": "Ungültige Zeile. Format: 4 = HDMI ARC (Nummer 1–17, jeder Name nur einmal)."
+    }
+  }
+}
