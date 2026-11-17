@@ -52,7 +52,7 @@ Under **Configure** you can change:
 
 - **Device type**
 - **Maximum volume** – Home Assistant will never turn the volume higher than this, whether by slider, voice command or automation. The device itself is not limited.
-- **Inputs** – one line per input, e.g. `4 = HDMI ARC`
+- **Inputs** – one line per input, e.g. `4 = HDMI ARC`. Preset to the factory names of the SP25 (multichannel) and Pre35 (stereo); other stereo models may number their inputs differently.
 - **Show Prisma streamer playback** – see below
 
 A new IP address can be entered under **Reconfigure**.
