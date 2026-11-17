@@ -8,6 +8,7 @@ wurde nur an die Struktur von Version 2 angepasst:
 
 from __future__ import annotations
 
+from contextlib import suppress
 from datetime import timedelta
 import logging
 
@@ -21,7 +22,7 @@ from homeassistant.components.media_player import (
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers import device_registry as dr, entity_registry as er
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.event import async_call_later, async_track_time_interval
 from homeassistant.helpers.update_coordinator import (
@@ -34,7 +35,7 @@ from homeassistant.util import dt as dt_util
 from . import PrimareConfigEntry
 from .client import PrimareClient
 from .const import CONF_HOST, CONF_PLAYBACK, DOMAIN
-from .luci import LuciPlaybackClient, Playback
+from .luci import SOURCES, LuciPlaybackClient, Playback
 
 _LOGGER = logging.getLogger(__name__)
 RESYNC_INTERVAL = timedelta(seconds=60)
@@ -131,6 +132,38 @@ class PrimarePlayback(CoordinatorEntity, MediaPlayerEntity):
         self._initial_sync = self._entry.async_create_background_task(
             self.hass, self._async_resync(), "primare_playback_initial_sync"
         )
+        self._entry.async_create_background_task(
+            self.hass, self._async_read_device_info(), "primare_device_info"
+        )
+
+    async def _async_read_device_info(self) -> None:
+        """Main and streaming firmware once onto the device page (as the Prisma app shows them)."""
+        if self._initial_sync is not None:
+            with suppress(Exception):
+                await self._initial_sync
+        try:
+            info = await self._luci.async_read_device_info()
+        except (OSError, EOFError, ValueError) as err:
+            _LOGGER.debug("%s: device info not read: %s", self._entry.title, err)
+            return
+        _LOGGER.debug("%s: device info %s", self._entry.title, info)
+        registry = dr.async_get(self.hass)
+        device = next(
+            (
+                d
+                for d in dr.async_entries_for_config_entry(registry, self._entry.entry_id)
+                if (DOMAIN, self._entry.entry_id) in d.identifiers
+            ),
+            None,
+        )
+        if device is None:
+            return
+        changes = {}
+        if version := format_firmware(info.get("host_firmware"), info.get("firmware"), info.get("cast")):
+            changes["sw_version"] = version
+        if changes:
+            registry.async_update_device(device.id, **changes)
+
 
     async def async_will_remove_from_hass(self) -> None:
         self._listening = False
@@ -188,9 +221,9 @@ class PrimarePlayback(CoordinatorEntity, MediaPlayerEntity):
         # Standby kommt über Port 50006. Welcher Eingang zur LUCI-Sitzung gehört,
         # wird bewusst nicht geraten.
         if self._power_off():
-            if self._attr_state != MediaPlayerState.OFF:
+            if self._attr_state != MediaPlayerState.STANDBY:
                 self._handle_coordinator_update()
-        elif self._attr_state == MediaPlayerState.OFF:
+        elif self._attr_state == MediaPlayerState.STANDBY:
             # Auf die nächste LUCI-Abfrage warten statt alten Titel wiederherzustellen
             self._attr_state = None
             self.async_write_ha_state()
@@ -206,11 +239,11 @@ class PrimarePlayback(CoordinatorEntity, MediaPlayerEntity):
         now = dt_util.utcnow()
         playback = self.coordinator.data if self.coordinator.last_update_success else None
         self._attr_state = (
-            MediaPlayerState.OFF
+            MediaPlayerState.STANDBY
             if self._power_off()
             else (_STATES.get(playback.state) if playback is not None else None)
         )
-        if self._attr_state in (None, MediaPlayerState.IDLE, MediaPlayerState.OFF):
+        if self._attr_state in (None, MediaPlayerState.IDLE, MediaPlayerState.STANDBY):
             playback = None
 
         self._attr_media_title = playback.title if playback else None
@@ -219,7 +252,10 @@ class PrimarePlayback(CoordinatorEntity, MediaPlayerEntity):
         self._attr_media_image_url = playback.cover_art_url if playback else None
         self._attr_media_content_type = MediaType.MUSIC if self._attr_media_title else None
         self._attr_media_duration = playback.duration if playback else None
-        self._attr_app_name = playback.source_app if playback else None
+        source = self.coordinator.data.source_id if self.coordinator.data else None
+        self._attr_app_name = (playback.source_app if playback else None) or (
+            SOURCES.get(source) if source is not None and self._attr_state != MediaPlayerState.STANDBY else None
+        )
         self._attr_extra_state_attributes = (
             {
                 key: value
@@ -228,6 +264,7 @@ class PrimarePlayback(CoordinatorEntity, MediaPlayerEntity):
                     "bit_depth": playback.bit_depth,
                     "audio_format": playback.audio_format,
                     "bit_rate_bps": playback.bit_rate_bps,
+                    "source_id": playback.source_id,
                 }.items()
                 if value is not None
             }
@@ -306,3 +343,18 @@ class PrimarePlayback(CoordinatorEntity, MediaPlayerEntity):
 
     async def async_media_seek(self, position: float) -> None:
         await self._async_transport("SEEK", position)
+
+
+def format_firmware(main: object, streaming: object, cast: object = None) -> str | None:
+    """'315', '15644', '1.52.272222' -> '3.15 (Streaming 15644 · Cast 1.52)'."""
+    main = str(main) if main else ""
+    if main.isdigit() and len(main) >= 3:
+        main = f"{int(main[:-2])}.{main[-2:]}"
+    details = []
+    if streaming:
+        details.append(f"Streaming {streaming}")
+    if cast:
+        details.append("Cast " + ".".join(str(cast).split(".")[:2]))
+    if main and details:
+        return f"{main} ({' · '.join(details)})"
+    return main or (" · ".join(details) or None)

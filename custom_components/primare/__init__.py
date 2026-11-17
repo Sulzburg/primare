@@ -8,7 +8,12 @@ import logging
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant, callback
-from homeassistant.helpers import config_validation as cv, entity_registry as er
+from homeassistant.helpers import (
+    config_validation as cv,
+    device_registry as dr,
+    entity_registry as er,
+)
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.typing import ConfigType
 
 from .client import DEFAULT_PORT, VOLUME_MAX, PrimareClient
@@ -25,6 +30,7 @@ from .const import (
     DeviceProfile,
     parse_inputs,
 )
+from .identity import async_read_identity
 from .services import async_setup_services
 
 _LOGGER = logging.getLogger(__name__)
@@ -45,6 +51,7 @@ CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 class PrimareRuntime:
     client: PrimareClient
     profile: DeviceProfile
+    model: str | None = None  # as the device reported it (UPnP), remembered
 
 
 type PrimareConfigEntry = ConfigEntry[PrimareRuntime]
@@ -81,11 +88,56 @@ async def async_setup_entry(hass: HomeAssistant, entry: PrimareConfigEntry) -> b
     # Klappt das nicht, laufen die Versuche im Hintergrund weiter und die
     # Entitäten stehen so lange auf "nicht verfügbar".
     await client.start(wait=3)
-    entry.runtime_data = PrimareRuntime(client, profile)
+    store = _identity_store(hass, entry)
+    known = await store.async_load() or {}
+    entry.runtime_data = PrimareRuntime(client, profile, model=known.get("model"))
     entry.async_on_unload(entry.add_update_listener(_async_reload))
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+    entry.async_create_background_task(
+        hass, _async_update_identity(hass, entry, store, known), "primare_identity"
+    )
     return True
+
+
+def _identity_store(hass: HomeAssistant, entry: ConfigEntry) -> Store:
+    return Store(hass, 1, f"{DOMAIN}.identity.{entry.entry_id}")
+
+
+async def _async_update_identity(
+    hass: HomeAssistant, entry: PrimareConfigEntry, store: Store, known: dict
+) -> None:
+    """Model as the device reports it (UPnP), onto the device page – and remember it.
+
+    A model read once stays, even if the device does not answer on a later start.
+    """
+    info = await async_read_identity(entry.data[CONF_HOST], known.get("location"))
+    manufacturer = info.get("manufacturer", "")
+    if manufacturer and "primare" not in manufacturer.lower():
+        return
+    if info.get("model") and (
+        info["model"] != known.get("model") or info.get("location") != known.get("location")
+    ):
+        await store.async_save({"model": info["model"], "location": info.get("location")})
+    registry = dr.async_get(hass)
+    for device in dr.async_entries_for_config_entry(registry, entry.entry_id):
+        if (DOMAIN, entry.entry_id) not in device.identifiers:
+            continue
+        changes = {}
+        model = info.get("model") or known.get("model")
+        if model and device.model != model:
+            changes["model"] = model
+        if device.serial_number:
+            # Neither UPnP nor LUCI deliver the real Primare serial – remove what the
+            # 2.3.0 test versions wrote. The integration owns this device.
+            changes["serial_number"] = None
+        if changes:
+            registry.async_update_device(device.id, **changes)
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Forget the remembered model when the device is removed."""
+    await _identity_store(hass, entry).async_remove()
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: PrimareConfigEntry) -> bool:

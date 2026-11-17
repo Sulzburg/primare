@@ -18,7 +18,8 @@ Tested with SP25, Pre35 and NP5 MKII.
 
 - Changes made on the device, the remote or the Prisma app show up in Home Assistant immediately.
 - Reconnects on its own if the device was switched off or the network was interrupted.
-- One device per Primare with a media player for power, volume, mute, input and DSP mode.
+- One device per Primare with a media player for power, volume, mute, input and DSP mode. When the device is switched off, it shows *Standby*.
+- The device page shows the model and the firmware the way the Prisma app does, e.g. `3.15 (Streaming 15644 · Cast 1.52)`.
 - Input names, device type and a maximum volume can be set in the UI.
 - Optional: what the built-in Prisma streamer is playing – title, artist, album, cover, audio format – with play, pause, stop and skip.
 - Actions for stepping and fading the volume, e.g. for automations.
@@ -51,7 +52,7 @@ Under **Configure** you can change:
 
 - **Device type**
 - **Maximum volume** – Home Assistant will never turn the volume higher than this, whether by slider, voice command or automation. The device itself is not limited.
-- **Inputs** – one line per input, e.g. `4 = HDMI ARC`
+- **Inputs** – one line per input, e.g. `4 = HDMI ARC`. Preset to the factory names of the SP25 (multichannel) and Pre35 (stereo); other stereo models may number their inputs differently.
 - **Show Prisma streamer playback** – see below
 
 A new IP address can be entered under **Reconfigure**.
@@ -79,6 +80,8 @@ There are also status sensors and volume up/down buttons.
 ## Prisma playback
 
 Turn it on per device under **Configure → Show Prisma streamer playback**. You get a media player that shows what the streamer is playing and lets you play, pause, stop and skip tracks – no matter which app started the music. Contributed by [yvos](https://github.com/yvos).
+
+The media player also tells which service is playing, e.g. `Roon`, in its attribute `app_name` – handy for automations.
 
 Tested on Pre35 and SP25:
 

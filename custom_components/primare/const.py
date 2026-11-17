@@ -23,21 +23,17 @@ DEVICE_TYPES = [TYPE_MULTICHANNEL, TYPE_STEREO, TYPE_STREAMER]
 
 # Vorgabe-Eingangsnamen, solange in den Optionen nichts eingetragen ist
 DEFAULT_INPUTS: dict[str, dict[int, str]] = {
-    TYPE_MULTICHANNEL: {
-        1: "BD LG",
-        2: "BD PAN",
-        3: "FireTV",
-        4: "HDMI ARC",
-        5: "TV Opto",
-        17: "Prisma",
+    # Factory names as shown on the device; rename them under "Configure".
+    TYPE_MULTICHANNEL: {  # SP25 / SPA25
+        **{n: f"Preset {n}" for n in range(1, 16)},
+        16: "PC/MAC",
+        17: "Stream",
     },
-    TYPE_STEREO: {
-        1: "R35",
-        3: "SP25",
-        6: "TV",
-        10: "NP5",
+    TYPE_STEREO: {  # Pre35; other stereo models may differ
+        **{n: f"A{n}" for n in range(1, 6)},
+        **{n: f"D{n}" for n in range(6, 12)},
         12: "PC/MAC",
-        13: "Prisma",
+        13: "Stream",
     },
     TYPE_STREAMER: {},
 }
@@ -100,7 +96,7 @@ class DeviceProfile:
 
 
 def parse_inputs(text: str) -> dict[int, str]:
-    """``"1 = BD LG\\n4 = HDMI ARC"`` → ``{1: "BD LG", 4: "HDMI ARC"}``.
+    """``"1 = Blu-ray\\n4 = HDMI ARC"`` → ``{1: "Blu-ray", 4: "HDMI ARC"}``.
 
     Wirft ValueError bei ungültigen Zeilen.
     """
