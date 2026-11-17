@@ -3,7 +3,10 @@
 Written by yvos (https://github.com/yvos) for Sulzburg/primare, pull request #3.
 MIT License. Changes since: Next/Prev/Seek are None when the device does not
 report them (instead of False), the PlayView fields are logged at debug level,
-and position pushes beyond the track length are ignored.
+position pushes beyond the track length are ignored, the source id (0x32/0x0A)
+is tracked, and a one-time device info read (streaming, main and cast firmware).
+Box meanings and the source table follow ha-libre-luci (Louis Desplanche, MIT)
+and aiolibresync (Alessandro Zarrilli, MIT).
 """
 
 import asyncio
@@ -23,6 +26,19 @@ PLAY_VIEW_PUSH = 0x2D
 POSITION = 0x31
 PLAY_STATE = 0x33
 SPEAKER = 0x46
+SOURCE_ALT = 0x0A
+SOURCE = 0x32
+FIRMWARE = 0x05
+HOST_FIRMWARE = 0x06
+CAST_VERSION = 0x07
+DEVICE_INFO_TIMEOUT = 1.5
+# Internal source ids of the streaming module (ha-libre-luci, firmware p15245)
+SOURCES = {
+    0: "None", 1: "AirPlay", 2: "DLNA", 3: "DMP", 4: "Spotify", 5: "USB",
+    6: "SD card", 8: "vTuner", 9: "TuneIn", 10: "Miracast", 12: "Multiroom",
+    14: "Aux", 18: "QPlay", 19: "Bluetooth", 21: "Deezer", 22: "Tidal",
+    23: "Favourites", 24: "Google Cast", 27: "Roon", 28: "Alexa",
+}
 REPLY = 1
 MAX_PAYLOAD = 5120
 REGISTER_SETTLE = 0.1
@@ -59,6 +75,7 @@ class Playback:
     can_next: bool | None = None
     can_previous: bool | None = None
     can_seek: bool | None = None
+    source_id: int | None = None
 
     @property
     def track(self) -> tuple:
@@ -176,6 +193,7 @@ class LuciPlaybackClient:
         self._publish_handle: asyncio.TimerHandle | None = None
         self._transition_handle: asyncio.TimerHandle | None = None
         self._pending_state: int | None = None
+        self._source_id: int | None = None
         self._syncing = False
         self._stopping = False
 
@@ -312,7 +330,7 @@ class LuciPlaybackClient:
         if status == 0 or (
             status == REPLY
             and (reply is None or reply.done())
-            and box in (PLAY_STATE, PLAY_VIEW, PLAY_VIEW_PUSH, POSITION, SPEAKER)
+            and box in (PLAY_STATE, PLAY_VIEW, PLAY_VIEW_PUSH, POSITION, SPEAKER, SOURCE, SOURCE_ALT)
         ):
             try:
                 self._apply_frame(box, payload, pushed=True)
@@ -364,6 +382,11 @@ class LuciPlaybackClient:
                 _LOGGER.debug("Ignoring LUCI position %.0f s beyond track length %.0f s", position, duration)
                 return
             self._device_position = position, asyncio.get_running_loop().time()
+        elif box in (SOURCE, SOURCE_ALT):
+            source = _number(_ascii(payload))
+            if source is None or source == self._source_id:
+                return
+            self._source_id = source
         elif box == SPEAKER:
             # Do not let an inactive event override a confirmed pause or play.
             if self._pending_state == 1 and _ascii(payload).startswith("SPEAKER_INACTIVE,"):
@@ -430,8 +453,13 @@ class LuciPlaybackClient:
         if self._state is None:
             return None
         if self._metadata is None or self._state not in (0, 2, *_BUFFERING_STATES):
-            return Playback(self._state)
-        return replace(self._metadata, state=self._state, position=self._current_position(now))
+            return Playback(self._state, source_id=self._source_id)
+        return replace(
+            self._metadata,
+            state=self._state,
+            position=self._current_position(now),
+            source_id=self._source_id,
+        )
 
     def _cancel_publish(self) -> None:
         if self._publish_handle is not None:
@@ -496,6 +524,41 @@ class LuciPlaybackClient:
                 raise
             finally:
                 self._syncing = False
+
+    async def async_read_device_info(self) -> dict[str, str | int]:
+        """Read streaming, main (host) and cast firmware and the source once.
+
+        Only boxes that other projects read without side effects. Each request
+        is independent; a refusal or timeout just leaves that value out.
+        """
+        info: dict[str, str | int] = {}
+        async with self._lock:
+            try:
+                await self._connect()
+            except (OSError, EOFError, ValueError):
+                await self._disconnect()
+                raise
+            for key, kind, box, payload in (
+                ("firmware", 1, FIRMWARE, b""),
+                ("host_firmware", 1, HOST_FIRMWARE, b""),
+                ("cast", 1, CAST_VERSION, b""),
+                ("source_id", 1, SOURCE, b""),
+            ):
+                try:
+                    raw = _ascii(await self._request(kind, box, payload, timeout=DEVICE_INFO_TIMEOUT))
+                except (LuciRefused, TimeoutError, ValueError) as err:
+                    _LOGGER.debug("LUCI device info %s not available: %s", key, err)
+                    continue
+                except (OSError, EOFError):
+                    await self._disconnect()
+                    raise
+                _LOGGER.debug("LUCI device info %s = %r", key, raw)
+                if key == "source_id":
+                    if (number := _number(raw)) is not None:
+                        info[key] = number
+                elif raw:
+                    info[key] = raw
+        return info
 
     async def async_transport(self, command: str, position: float | None = None) -> None:
         if command == "SEEK":

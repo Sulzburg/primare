@@ -29,7 +29,7 @@ class PrimareEntity(Entity):
             identifiers={(DOMAIN, entry.entry_id)},
             name=entry.title,
             manufacturer="Primare",
-            model=runtime.profile.model,
+            model=runtime.model or runtime.profile.model,
         )
 
     async def async_added_to_hass(self) -> None:
