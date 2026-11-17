@@ -1,46 +1,33 @@
-"""Wiedergabe des eingebauten Prisma-Streamers (LUCI, Port 7777).
+"""What the built-in Prisma streamer is playing (LUCI, port 7777).
 
-Die Logik stammt aus Pull Request #3 von yvos (https://github.com/yvos) und
-wurde nur an die Struktur von Version 2 angepasst:
-- Gerät, Name und unique_id wie die übrigen Entitäten (Name "Wiedergabe"),
-- Standby kommt aus dem PrimareClient (Port 50006) statt aus dem alten Coordinator.
+The playback logic comes from pull request #3 by yvos (https://github.com/yvos).
+Since 3.0 it no longer is an entity of its own ("Wiedergabe"): the media player
+of the device ("Steuerung") reads it from here.
 """
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from contextlib import suppress
 from datetime import timedelta
 import logging
 
-from homeassistant.components.media_player import (
-    MediaPlayerDeviceClass,
-    MediaPlayerEntity,
-    MediaPlayerEntityFeature,
-    MediaPlayerState,
-    MediaType,
-)
+from homeassistant.components.media_player import MediaPlayerState
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import device_registry as dr, entity_registry as er
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.event import async_call_later, async_track_time_interval
-from homeassistant.helpers.update_coordinator import (
-    CoordinatorEntity,
-    DataUpdateCoordinator,
-    UpdateFailed,
-)
-from homeassistant.util import dt as dt_util
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
 from . import PrimareConfigEntry
-from .client import PrimareClient
-from .const import CONF_HOST, CONF_PLAYBACK, DOMAIN
-from .luci import SOURCES, LuciPlaybackClient, Playback
+from .const import CONF_HOST, DOMAIN
+from .luci import LuciPlaybackClient, Playback
 
 _LOGGER = logging.getLogger(__name__)
 RESYNC_INTERVAL = timedelta(seconds=60)
 RECONNECT_DELAY = 5
-_STATES = {
+STATES = {
     0: MediaPlayerState.PLAYING,
     1: MediaPlayerState.IDLE,
     2: MediaPlayerState.PAUSED,
@@ -50,144 +37,113 @@ _STATES = {
 }
 
 
-def playback_unique_id(entry: PrimareConfigEntry) -> str:
-    return f"{entry.entry_id}_playback"
+def async_remove_old_playback_entity(hass: HomeAssistant, entry: PrimareConfigEntry) -> None:
+    """Up to 2.x the streamer had its own entity "Wiedergabe" – remove it."""
+    registry = er.async_get(hass)
+    if entity_id := registry.async_get_entity_id("media_player", DOMAIN, f"{entry.entry_id}_playback"):
+        registry.async_remove(entity_id)
 
 
-def async_create_playback(
-    hass: HomeAssistant, entry: PrimareConfigEntry
-) -> PrimarePlayback | None:
-    """Wiedergabe-Entität bauen, wenn sie in den Optionen eingeschaltet ist.
+class StreamerPlayback:
+    """Keeps the streamer's playback current and tells the media player."""
 
-    Ist sie ausgeschaltet, wird ein alter Registereintrag entfernt.
-    """
-    if not entry.options.get(CONF_PLAYBACK, False):
-        registry = er.async_get(hass)
-        if entity_id := registry.async_get_entity_id(
-            "media_player", DOMAIN, playback_unique_id(entry)
-        ):
-            registry.async_remove(entity_id)
-        return None
-
-    luci = LuciPlaybackClient(entry.data[CONF_HOST])
-    entry.async_on_unload(luci.async_shutdown)
-
-    async def async_read_playback() -> Playback:
-        try:
-            return await luci.async_read()
-        except (OSError, EOFError, ValueError) as err:
-            raise UpdateFailed(f"Wiedergabe nicht lesbar: {err}") from err
-
-    coordinator = DataUpdateCoordinator(
-        hass,
-        _LOGGER,
-        config_entry=entry,
-        name=f"Primare {entry.title} Wiedergabe",
-        update_method=async_read_playback,
-    )
-
-    async def async_stop(_event) -> None:
-        await coordinator.async_shutdown()
-        await luci.async_shutdown()
-
-    entry.async_on_unload(hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, async_stop))
-    return PrimarePlayback(coordinator, entry, luci)
-
-
-class PrimarePlayback(CoordinatorEntity, MediaPlayerEntity):
-    """Was der Streamer gerade spielt – unabhängig von Spotify-Konto oder Sender."""
-
-    _attr_has_entity_name = True
-    _attr_name = "Wiedergabe"
-    _attr_device_class = MediaPlayerDeviceClass.SPEAKER
-
-    def __init__(
-        self,
-        coordinator: DataUpdateCoordinator,
-        entry: PrimareConfigEntry,
-        luci: LuciPlaybackClient,
-    ) -> None:
-        super().__init__(coordinator)
+    def __init__(self, hass: HomeAssistant, entry: PrimareConfigEntry) -> None:
+        self._hass = hass
         self._entry = entry
-        self._luci = luci
-        self._controls: PrimareClient = entry.runtime_data.client
+        self._luci = LuciPlaybackClient(entry.data[CONF_HOST])
+        self._coordinator = DataUpdateCoordinator(
+            hass,
+            _LOGGER,
+            config_entry=entry,
+            name=f"Primare {entry.title} streamer",
+            update_method=self._async_read,
+        )
+        self._listeners: list[Callable[[], None]] = []
+        self._cancel_sync: Callable[[], None] | None = None
         self._initial_sync = None
-        self._track = None
-        self._cancel_sync = None
-        self._listening = False
-        self._attr_unique_id = playback_unique_id(entry)
-        self._attr_device_info = DeviceInfo(identifiers={(DOMAIN, entry.entry_id)})
-        self._attr_supported_features = MediaPlayerEntityFeature(0)
+        self._running = False
+        self._stale = False
 
-    # -------------------------------------------------------------- Lebenszyklus
-    async def async_added_to_hass(self) -> None:
-        await super().async_added_to_hass()
-        self._listening = True
-        self.async_on_remove(self._controls.add_listener(self._handle_power_update))
-        self.async_on_remove(self._luci.subscribe(self._handle_luci_event))
-        # Fester Takt, auch wenn laufend Positionsmeldungen kommen
-        self.async_on_remove(
-            async_track_time_interval(self.hass, self._async_resync, RESYNC_INTERVAL)
+    # ---------------------------------------------------------------- lifecycle
+    def add_listener(self, listener: Callable[[], None]) -> Callable[[], None]:
+        self._listeners.append(listener)
+        return lambda: self._listeners.remove(listener)
+
+    @callback
+    def async_start(self) -> None:
+        self._running = True
+        entry = self._entry
+        entry.async_on_unload(self._coordinator.async_add_listener(self._notify))
+        entry.async_on_unload(self._luci.subscribe(self._handle_luci_event))
+        # Fixed rhythm, even while position pushes keep coming
+        entry.async_on_unload(
+            async_track_time_interval(self._hass, self._async_resync, RESYNC_INTERVAL)
         )
-        self._initial_sync = self._entry.async_create_background_task(
-            self.hass, self._async_resync(), "primare_playback_initial_sync"
+        entry.async_on_unload(
+            self._hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STOP, self._async_stop_event)
         )
-        self._entry.async_create_background_task(
-            self.hass, self._async_read_device_info(), "primare_device_info"
+        entry.async_on_unload(self.async_stop)
+        self._initial_sync = entry.async_create_background_task(
+            self._hass, self._async_resync(), "primare_playback_initial_sync"
+        )
+        entry.async_create_background_task(
+            self._hass, self._async_read_device_info(), "primare_device_info"
         )
 
-    async def _async_read_device_info(self) -> None:
-        """Main and streaming firmware once onto the device page (as the Prisma app shows them)."""
-        if self._initial_sync is not None:
-            with suppress(Exception):
-                await self._initial_sync
-        try:
-            info = await self._luci.async_read_device_info()
-        except (OSError, EOFError, ValueError) as err:
-            _LOGGER.debug("%s: device info not read: %s", self._entry.title, err)
+    async def _async_stop_event(self, _event) -> None:
+        await self.async_stop()
+
+    async def async_stop(self) -> None:
+        if not self._running:
             return
-        _LOGGER.debug("%s: device info %s", self._entry.title, info)
-        registry = dr.async_get(self.hass)
-        device = next(
-            (
-                d
-                for d in dr.async_entries_for_config_entry(registry, self._entry.entry_id)
-                if (DOMAIN, self._entry.entry_id) in d.identifiers
-            ),
-            None,
-        )
-        if device is None:
-            return
-        changes = {}
-        if version := format_firmware(info.get("host_firmware"), info.get("firmware"), info.get("cast")):
-            changes["sw_version"] = version
-        if changes:
-            registry.async_update_device(device.id, **changes)
-
-
-    async def async_will_remove_from_hass(self) -> None:
-        self._listening = False
+        self._running = False
         self._cancel_scheduled_sync()
         if self._initial_sync is not None:
             self._initial_sync.cancel()
             self._initial_sync = None
-        await self._luci.async_disconnect()
-        await super().async_will_remove_from_hass()
+        await self._coordinator.async_shutdown()
+        await self._luci.async_shutdown()
 
-    # ------------------------------------------------------------- Aktualisierung
-    def _power_off(self) -> bool:
-        return self._controls.power is False
+    # ------------------------------------------------------------------ state
+    @property
+    def playback(self) -> Playback | None:
+        """Latest playback, or None while unknown (no answer yet, error, just woke up)."""
+        if self._stale or not self._coordinator.last_update_success:
+            return None
+        return self._coordinator.data
+
+    @callback
+    def async_invalidate(self) -> None:
+        """Device woke up or changed input: forget the old track, ask again shortly."""
+        self._stale = True
+        self._notify()
+        self._schedule_sync(1)
+
+    @callback
+    def _notify(self) -> None:
+        for listener in list(self._listeners):
+            listener()
+
+    # ------------------------------------------------------------------ reading
+    async def _async_read(self) -> Playback:
+        try:
+            playback = await self._luci.async_read()
+        except (OSError, EOFError, ValueError) as err:
+            raise UpdateFailed(f"Streamer not readable: {err}") from err
+        self._stale = False
+        return playback
 
     @callback
     def _handle_luci_event(self, update: Playback | Exception) -> None:
-        if not self._listening or self.hass.is_stopping:
+        if not self._running or self._hass.is_stopping:
             return
         if isinstance(update, Exception):
-            self.coordinator.async_set_update_error(UpdateFailed(str(update)))
+            self._coordinator.async_set_update_error(UpdateFailed(str(update)))
             self._schedule_sync(RECONNECT_DELAY)
         else:
             self._cancel_scheduled_sync()
-            self.coordinator.async_set_updated_data(update)
+            self._stale = False
+            self._coordinator.async_set_updated_data(update)
 
     @callback
     def _cancel_scheduled_sync(self) -> None:
@@ -197,152 +153,50 @@ class PrimarePlayback(CoordinatorEntity, MediaPlayerEntity):
 
     @callback
     def _schedule_sync(self, delay: float) -> None:
-        if not self._listening or self.hass.is_stopping:
+        if not self._running or self._hass.is_stopping:
             return
         self._cancel_scheduled_sync()
-        self._cancel_sync = async_call_later(self.hass, delay, self._async_scheduled_sync)
+        self._cancel_sync = async_call_later(self._hass, delay, self._async_scheduled_sync)
 
     async def _async_scheduled_sync(self, _now) -> None:
         self._cancel_sync = None
         await self._async_resync()
 
     async def _async_resync(self, _now=None) -> None:
-        if not self._listening or self.hass.is_stopping:
+        if not self._running or self._hass.is_stopping:
             return
-        await self.coordinator.async_refresh()
-        if not self.coordinator.last_update_success:
+        await self._coordinator.async_refresh()
+        if not self._coordinator.last_update_success:
             self._schedule_sync(RECONNECT_DELAY)
 
-    async def async_update(self) -> None:
-        await self._async_resync()
-
-    @callback
-    def _handle_power_update(self) -> None:
-        # Standby kommt über Port 50006. Welcher Eingang zur LUCI-Sitzung gehört,
-        # wird bewusst nicht geraten.
-        if self._power_off():
-            if self._attr_state != MediaPlayerState.STANDBY:
-                self._handle_coordinator_update()
-        elif self._attr_state == MediaPlayerState.STANDBY:
-            # Auf die nächste LUCI-Abfrage warten statt alten Titel wiederherzustellen
-            self._attr_state = None
-            self.async_write_ha_state()
-            self._schedule_sync(1)
-
-    @callback
-    def _handle_coordinator_update(self) -> None:
-        self._apply_snapshot()
-        super()._handle_coordinator_update()
-
-    @callback
-    def _apply_snapshot(self) -> None:
-        now = dt_util.utcnow()
-        playback = self.coordinator.data if self.coordinator.last_update_success else None
-        self._attr_state = (
-            MediaPlayerState.STANDBY
-            if self._power_off()
-            else (_STATES.get(playback.state) if playback is not None else None)
-        )
-        if self._attr_state in (None, MediaPlayerState.IDLE, MediaPlayerState.STANDBY):
-            playback = None
-
-        self._attr_media_title = playback.title if playback else None
-        self._attr_media_artist = playback.artist if playback else None
-        self._attr_media_album_name = playback.album if playback else None
-        self._attr_media_image_url = playback.cover_art_url if playback else None
-        self._attr_media_content_type = MediaType.MUSIC if self._attr_media_title else None
-        self._attr_media_duration = playback.duration if playback else None
-        source = self.coordinator.data.source_id if self.coordinator.data else None
-        self._attr_app_name = (playback.source_app if playback else None) or (
-            SOURCES.get(source) if source is not None and self._attr_state != MediaPlayerState.STANDBY else None
-        )
-        self._attr_extra_state_attributes = (
-            {
-                key: value
-                for key, value in {
-                    "sample_rate_hz": playback.sample_rate_hz,
-                    "bit_depth": playback.bit_depth,
-                    "audio_format": playback.audio_format,
-                    "bit_rate_bps": playback.bit_rate_bps,
-                    "source_id": playback.source_id,
-                }.items()
-                if value is not None
-            }
-            if playback
-            else {}
-        )
-        self._attr_supported_features = self._features(playback)
-        self._update_position(playback, now)
-
-    def _update_position(self, playback: Playback | None, now) -> None:
-        track = playback.track if playback else None
-        position = playback.position if playback else None
-        duration = playback.duration if playback else None
-        if position is not None and duration and position > duration + 2:
-            # Gerät zählt falsch (z. B. nach Tidal↔Qobuz-Wechsel) – lieber keine Position
-            position = None
-        # Beim Spielen braucht auch ein Zurückspulen auf dieselbe Zahl einen neuen Zeitstempel
-        if track == self._track and self._attr_state != MediaPlayerState.PLAYING and (
-            position == self._attr_media_position
-            or (position is None and self._attr_state == MediaPlayerState.PAUSED)
-        ):
+    async def _async_read_device_info(self) -> None:
+        """Main, streaming and Cast firmware once onto the device page (as the Prisma app shows them)."""
+        if self._initial_sync is not None:
+            with suppress(Exception):
+                await self._initial_sync
+        try:
+            info = await self._luci.async_read_device_info()
+        except (OSError, EOFError, ValueError) as err:
+            _LOGGER.debug("%s: device info not read: %s", self._entry.title, err)
             return
-        self._track = track
-        self._attr_media_position = position
-        self._attr_media_position_updated_at = now if position is not None else None
+        _LOGGER.debug("%s: device info %s", self._entry.title, info)
+        registry = dr.async_get(self._hass)
+        for device in dr.async_entries_for_config_entry(registry, self._entry.entry_id):
+            if (DOMAIN, self._entry.entry_id) not in device.identifiers:
+                continue
+            version = format_firmware(info.get("host_firmware"), info.get("firmware"), info.get("cast"))
+            if version and device.sw_version != version:
+                registry.async_update_device(device.id, sw_version=version)
 
-    @staticmethod
-    def _features(playback: Playback | None) -> MediaPlayerEntityFeature:
-        if playback is None or playback.state not in (0, 2):
-            return MediaPlayerEntityFeature(0)
-        features = (
-            MediaPlayerEntityFeature.PLAY
-            | MediaPlayerEntityFeature.PAUSE
-            | MediaPlayerEntityFeature.STOP
-        )
-        # Many devices (e.g. Pre35) do not report Next/Prev at all, yet the
-        # commands work – offer them unless the device explicitly refuses.
-        if playback.can_next is not False:
-            features |= MediaPlayerEntityFeature.NEXT_TRACK
-        if playback.can_previous is not False:
-            features |= MediaPlayerEntityFeature.PREVIOUS_TRACK
-        if playback.can_seek is True:
-            features |= MediaPlayerEntityFeature.SEEK
-        return features
-
-    @property
-    def available(self) -> bool:
-        return self._power_off() or super().available
-
-    # ------------------------------------------------------------------ Befehle
-    async def _async_transport(self, command: str, position: float | None = None) -> None:
+    # ---------------------------------------------------------------- commands
+    async def async_transport(self, command: str, position: float | None = None) -> None:
         try:
             await self._luci.async_transport(command, position)
         except (OSError, EOFError, ValueError) as err:
             if not self._luci.connected:
                 self._handle_luci_event(err)
-            raise HomeAssistantError(f"Wiedergabe nicht steuerbar: {err}") from err
+            raise HomeAssistantError(f"Streamer not controllable: {err}") from err
         self._schedule_sync(1)
-
-    async def async_media_play(self) -> None:
-        await self._async_transport(
-            "RESUME" if self.state == MediaPlayerState.PAUSED else "PLAY"
-        )
-
-    async def async_media_pause(self) -> None:
-        await self._async_transport("PAUSE")
-
-    async def async_media_stop(self) -> None:
-        await self._async_transport("STOP")
-
-    async def async_media_next_track(self) -> None:
-        await self._async_transport("NEXT")
-
-    async def async_media_previous_track(self) -> None:
-        await self._async_transport("PREV")
-
-    async def async_media_seek(self, position: float) -> None:
-        await self._async_transport("SEEK", position)
 
 
 def format_firmware(main: object, streaming: object, cast: object = None) -> str | None:

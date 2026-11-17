@@ -19,7 +19,7 @@ async def async_setup_entry(
 
 
 class PrimareVolumeUp(PrimareEntity, ButtonEntity):
-    _attr_name = "Vol Up"
+    _attr_translation_key = "volume_up"
     _attr_icon = "mdi:volume-plus"
 
     def __init__(self, entry: PrimareConfigEntry) -> None:
@@ -30,7 +30,7 @@ class PrimareVolumeUp(PrimareEntity, ButtonEntity):
 
 
 class PrimareVolumeDown(PrimareEntity, ButtonEntity):
-    _attr_name = "Vol Down"
+    _attr_translation_key = "volume_down"
     _attr_icon = "mdi:volume-minus"
 
     def __init__(self, entry: PrimareConfigEntry) -> None:

@@ -14,7 +14,6 @@ from homeassistant.config_entries import (
 )
 from homeassistant.core import callback
 from homeassistant.helpers.selector import (
-    BooleanSelector,
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
@@ -33,7 +32,6 @@ from .const import (
     CONF_INPUTS,
     CONF_MAX_VOLUME,
     CONF_NAME,
-    CONF_PLAYBACK,
     CONF_PORT,
     DEFAULT_INPUTS,
     DOMAIN,
@@ -151,7 +149,6 @@ class PrimareOptionsFlow(OptionsFlow):
                         CONF_DEVICE_TYPE: new_type,
                         CONF_INPUTS: format_inputs(inputs),
                         CONF_MAX_VOLUME: int(user_input[CONF_MAX_VOLUME]),
-                        CONF_PLAYBACK: bool(user_input.get(CONF_PLAYBACK, False)),
                     }
                 )
 
@@ -174,9 +171,6 @@ class PrimareOptionsFlow(OptionsFlow):
                 vol.Optional(CONF_INPUTS, default=current_inputs): TextSelector(
                     TextSelectorConfig(multiline=True)
                 ),
-                vol.Required(
-                    CONF_PLAYBACK, default=bool(entry.options.get(CONF_PLAYBACK, False))
-                ): BooleanSelector(),
             }
         )
         return self.async_show_form(step_id="init", data_schema=schema, errors=errors)

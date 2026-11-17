@@ -37,11 +37,9 @@
         "data": {
           "device_type": "Device type",
           "max_volume": "Maximum volume",
-          "inputs": "Inputs / presets",
-          "playback_status": "Show Prisma streamer playback"
+          "inputs": "Inputs / presets"
         },
         "data_description": {
-          "playback_status": "Adds a \"Playback\" entity: title, artist, cover art, position and play/pause/skip. Uses the built-in streamer's LUCI protocol (port 7777). Verified on the NP5 Prisma MK2; other models untested. Contributed by yvos.",
           "max_volume": "Home Assistant never sets a higher volume – slider, voice, automation or action. 99 = no limit. The device itself is not restricted.",
           "inputs": "One line per input: number = name (1–17). Leave empty for no input selection."
         }
@@ -49,6 +47,48 @@
     },
     "error": {
       "invalid_inputs": "Invalid line. Format: 4 = HDMI ARC (number 1–17, each name only once)."
+    }
+  },
+  "entity": {
+    "button": {
+      "volume_up": {
+        "name": "Vol Up"
+      },
+      "volume_down": {
+        "name": "Vol Down"
+      }
+    },
+    "number": {
+      "volume": {
+        "name": "Volume"
+      }
+    },
+    "select": {
+      "input": {
+        "name": "Input"
+      },
+      "dsp_mode": {
+        "name": "DSP Mode"
+      }
+    },
+    "sensor": {
+      "volume_status": {
+        "name": "Volume (Status)"
+      },
+      "input_status": {
+        "name": "Input (Status)"
+      },
+      "dsp_mode_status": {
+        "name": "DSP Mode (Status)"
+      }
+    },
+    "switch": {
+      "power": {
+        "name": "Power"
+      },
+      "mute": {
+        "name": "Mute"
+      }
     }
   }
 }

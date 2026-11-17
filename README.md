@@ -18,10 +18,9 @@ Tested with SP25, Pre35 and NP5 MKII.
 
 - Changes made on the device, the remote or the Prisma app show up in Home Assistant immediately.
 - Reconnects on its own if the device was switched off or the network was interrupted.
-- One device per Primare with a media player for power, volume, mute, input and DSP mode. When the device is switched off, it shows *Standby*.
+- One media player per device for everything: power, volume, mute, input and DSP mode – and what the built-in Prisma streamer is playing, with play, pause, stop and skip.
 - The device page shows the model and the firmware the way the Prisma app does, e.g. `3.15 (Streaming 15644 · Cast 1.52)`.
 - Input names, device type and a maximum volume can be set in the UI.
-- Optional: what the built-in Prisma streamer is playing – title, artist, album, cover, audio format – with play, pause, stop and skip.
 - Actions for stepping and fading the volume, e.g. for automations.
 
 ## Installation
@@ -53,7 +52,6 @@ Under **Configure** you can change:
 - **Device type**
 - **Maximum volume** – Home Assistant will never turn the volume higher than this, whether by slider, voice command or automation. The device itself is not limited.
 - **Inputs** – one line per input, e.g. `4 = HDMI ARC`. Preset to the factory names of the SP25 (multichannel) and Pre35 (stereo); other stereo models may number their inputs differently.
-- **Show Prisma streamer playback** – see below
 
 A new IP address can be entered under **Reconfigure**.
 
@@ -61,15 +59,14 @@ A new IP address can be entered under **Reconfigure**.
 
 | Entity | Multichannel | Stereo | Network player |
 |---|---|---|---|
-| Media player "Steuerung" (power, volume, mute, input, DSP mode) | ✓ | ✓ | power and volume |
+| Media player, named like the device (power, volume, mute, input, DSP mode, playback) | ✓ | ✓ | power, volume, playback |
 | Power switch | ✓ | ✓ | ✓ |
 | Mute switch | ✓ | ✓ | |
 | Volume slider (0–99) | ✓ | ✓ | ✓ |
 | Input selection | ✓ | ✓ | |
 | DSP mode selection | ✓ | | |
-| Media player "Wiedergabe" (Prisma playback, optional) | ✓ | ✓ | ✓ |
 
-There are also status sensors and volume up/down buttons.
+There are also status sensors and volume up/down buttons. Entity names follow the language of Home Assistant (English or German).
 
 ## Actions
 
@@ -79,7 +76,10 @@ There are also status sensors and volume up/down buttons.
 
 ## Prisma playback
 
-Turn it on per device under **Configure → Show Prisma streamer playback**. You get a media player that shows what the streamer is playing and lets you play, pause, stop and skip tracks – no matter which app started the music. Contributed by [yvos](https://github.com/yvos).
+The media player shows what the built-in streamer is playing – title, artist, album, cover, audio format – and lets you play, pause, stop and skip, no matter which app started the music. Playback contributed by [yvos](https://github.com/yvos).
+
+- On another input (e.g. a turntable) the player shows the input name.
+- *Play* works from any input and even from standby: the device switches to the streamer and turns on by itself.
 
 The media player also tells which service is playing, e.g. `Roon`, in its attribute `app_name` – handy for automations.
 
@@ -98,9 +98,11 @@ Good to know:
 - Seeking within a track is not available.
 - Switching directly between Tidal and Qobuz in the Prisma app can confuse the device. Stop playback before switching services; if it happens, unplug the device briefly.
 
-## Upgrading from version 1
+## Upgrading
 
-Your entity IDs stay the same, so automations and dashboards keep working. Restart Home Assistant after updating.
+**From 2.x to 3.0:** the separate media player *Wiedergabe* is gone – everything is in the one media player (entity ID `media_player.<name>_steuerung` stays). Point cards or automations that used `media_player.<name>_wiedergabe` to it. Switched off now shows *Off* (Home Assistant no longer supports *Standby*).
+
+**From 1.x:** your entity IDs stay the same, so automations and dashboards keep working. Restart Home Assistant after updating.
 
 ## Credits
 

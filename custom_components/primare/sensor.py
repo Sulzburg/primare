@@ -31,7 +31,7 @@ async def async_setup_entry(
 
 
 class PrimareVolumeSensor(PrimareEntity, SensorEntity):
-    _attr_name = "Volume (Status)"
+    _attr_translation_key = "volume_status"
     _attr_icon = "mdi:volume-high"
     _attr_state_class = SensorStateClass.MEASUREMENT
 
@@ -44,7 +44,7 @@ class PrimareVolumeSensor(PrimareEntity, SensorEntity):
 
 
 class PrimareInputSensor(PrimareEntity, SensorEntity):
-    _attr_name = "Input (Status)"
+    _attr_translation_key = "input_status"
     _attr_icon = "mdi:audio-input-rca"
     _attr_device_class = SensorDeviceClass.ENUM
 
@@ -60,7 +60,7 @@ class PrimareInputSensor(PrimareEntity, SensorEntity):
 
 
 class PrimareDspSensor(PrimareEntity, SensorEntity):
-    _attr_name = "DSP Mode (Status)"
+    _attr_translation_key = "dsp_mode_status"
     _attr_icon = "mdi:surround-sound"
     _attr_device_class = SensorDeviceClass.ENUM
     _attr_options = list(DSP_MAP.values())

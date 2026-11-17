@@ -19,7 +19,7 @@ async def async_setup_entry(
 
 
 class PrimareVolume(PrimareEntity, NumberEntity):
-    _attr_name = "Volume"
+    _attr_translation_key = "volume"
     _attr_icon = "mdi:volume-high"
     _attr_native_min_value = 0
     _attr_native_step = 1

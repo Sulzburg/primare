@@ -14,7 +14,7 @@ CONF_PORT = "port"
 # Schlüssel in entry.options
 CONF_INPUTS = "inputs"
 CONF_MAX_VOLUME = "max_volume"
-CONF_PLAYBACK = "playback_status"  # gleicher Schlüssel wie in PR #3 von yvos
+CONF_PLAYBACK = "playback_status"  # bis 2.x: Schalter für die Entität „Wiedergabe“ (entfallen)
 
 TYPE_MULTICHANNEL = "Multichannel"  # SP25 / SPA25: Presets + DSP
 TYPE_STEREO = "Stereo"              # Vor-/Vollverstärker: Eingänge
@@ -70,6 +70,11 @@ class DeviceProfile:
     @property
     def has_dsp(self) -> bool:
         return self.device_type == TYPE_MULTICHANNEL
+
+    @property
+    def stream_input(self) -> int | None:
+        """Input of the built-in Prisma streamer – fixed per device, not configurable."""
+        return {TYPE_MULTICHANNEL: 17, TYPE_STEREO: 13}.get(self.device_type)
 
     @property
     def queries(self) -> tuple[str, ...]:
