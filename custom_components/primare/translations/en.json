@@ -1,0 +1,54 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Add Primare device",
+        "data": {
+          "ip_address": "IP address",
+          "port": "Port",
+          "device_name": "Name",
+          "device_type": "Device type"
+        },
+        "data_description": {
+          "port": "Primare default: 50006",
+          "device_name": "Used as device name and entity prefix, e.g. SP25"
+        }
+      },
+      "reconfigure": {
+        "title": "Change connection",
+        "data": {
+          "ip_address": "IP address",
+          "port": "Port"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot connect. Check IP address, port and network standby."
+    },
+    "abort": {
+      "already_configured": "This device is already configured.",
+      "reconfigure_successful": "Connection updated."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Primare options",
+        "data": {
+          "device_type": "Device type",
+          "max_volume": "Maximum volume",
+          "inputs": "Inputs / presets",
+          "playback_status": "Show Prisma streamer playback"
+        },
+        "data_description": {
+          "playback_status": "Adds a \"Playback\" entity: title, artist, cover art, position and play/pause/skip. Uses the built-in streamer's LUCI protocol (port 7777). Verified on the NP5 Prisma MK2; other models untested. Contributed by yvos.",
+          "max_volume": "Home Assistant never sets a higher volume – slider, voice, automation or action. 99 = no limit. The device itself is not restricted.",
+          "inputs": "One line per input: number = name (1–17). Leave empty for no input selection."
+        }
+      }
+    },
+    "error": {
+      "invalid_inputs": "Invalid line. Format: 4 = HDMI ARC (number 1–17, each name only once)."
+    }
+  }
+}

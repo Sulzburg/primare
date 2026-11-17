@@ -1,98 +1,68 @@
-import logging
+"""Eingangs- und DSP-Auswahl (bleiben für bestehende Automationen erhalten)."""
+
+from __future__ import annotations
+
 from homeassistant.components.select import SelectEntity
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ServiceValidationError
+from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
+from . import PrimareConfigEntry
 from .const import DSP_MAP, DSP_MAP_INV
+from .entity import PrimareEntity
 
-_LOGGER = logging.getLogger(__name__)
 
-async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities):
-    entry_data = hass.data["primare"].get(config_entry.entry_id)
-    if not entry_data:
-        raise RuntimeError(f"Kein Eintrag für {config_entry.entry_id} gefunden")
-
-    coordinator = entry_data["coordinator"]
-    device_name = entry_data["device_name"]
-    device_type = entry_data["device_type"]
-    input_map = entry_data["input_map"]
-    input_map_inv = entry_data["input_map_inv"]
-
-    entities = [PrimareInputSelect(coordinator, device_name, input_map, input_map_inv)]
-
-    if device_type == "Multichannel":
-        entities.append(PrimareDSPSelect(coordinator, device_name))
-
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: PrimareConfigEntry,
+    async_add_entities: AddConfigEntryEntitiesCallback,
+) -> None:
+    profile = entry.runtime_data.profile
+    entities: list[SelectEntity] = []
+    if profile.has_input:
+        entities.append(PrimareInputSelect(entry))
+    if profile.has_dsp:
+        entities.append(PrimareDspSelect(entry))
     async_add_entities(entities)
 
 
-class PrimareInputSelect(SelectEntity):
-    def __init__(self, coordinator, device_name: str, input_map: dict, input_map_inv: dict):
-        self._coordinator = coordinator
-        self._device_name = device_name
-        self._input_map = input_map
-        self._input_map_inv = input_map_inv
-        self._unique_id = f"primare_{device_name.lower().replace(' ', '_')}_input_select"
-        self._attr_name = f"{device_name} Input"
-        self._attr_options = list(input_map.values())
-        self._remove_listener = None
+class PrimareInputSelect(PrimareEntity, SelectEntity):
+    _attr_name = "Input"
+    _attr_icon = "mdi:audio-input-rca"
 
-    async def async_added_to_hass(self) -> None:
-        self._remove_listener = self._coordinator.async_add_listener(self.async_write_ha_state)
-
-    async def async_will_remove_from_hass(self) -> None:
-        if self._remove_listener:
-            self._remove_listener()
+    def __init__(self, entry: PrimareConfigEntry) -> None:
+        super().__init__(entry, "input_select")
+        self._attr_options = list(self._profile.inputs.values())
 
     @property
-    def unique_id(self) -> str:
-        return self._unique_id
-
-    @property
-    def current_option(self):
-        return self._coordinator.data.get("input")
-
-    @property
-    def icon(self) -> str:
-        return "mdi:audio-input-rca"
+    def current_option(self) -> str | None:
+        if self._client.input is None:
+            return None
+        return self._profile.inputs.get(self._client.input)
 
     async def async_select_option(self, option: str) -> None:
-        num = self._input_map_inv.get(option)
-        if num is not None:
-            command = f"!1inp.{num}"
-            await self._coordinator.async_send_command(command)
+        number = self._profile.inputs_inv.get(option)
+        if number is None:
+            raise ServiceValidationError(f"Unbekannter Eingang: {option}")
+        await self._send(self._client.set_input(number))
 
 
-class PrimareDSPSelect(SelectEntity):
-    def __init__(self, coordinator, device_name: str):
-        self._coordinator = coordinator
-        self._device_name = device_name
-        self._unique_id = f"primare_{device_name.lower().replace(' ', '_')}_dsp_select"
-        self._attr_name = f"{device_name} DSP Mode"
-        self._attr_options = list(DSP_MAP.values())
-        self._remove_listener = None
+class PrimareDspSelect(PrimareEntity, SelectEntity):
+    _attr_name = "DSP Mode"
+    _attr_icon = "mdi:surround-sound"
+    _attr_options = list(DSP_MAP.values())
 
-    async def async_added_to_hass(self) -> None:
-        self._remove_listener = self._coordinator.async_add_listener(self.async_write_ha_state)
-
-    async def async_will_remove_from_hass(self) -> None:
-        if self._remove_listener:
-            self._remove_listener()
+    def __init__(self, entry: PrimareConfigEntry) -> None:
+        super().__init__(entry, "dsp_select")
 
     @property
-    def unique_id(self) -> str:
-        return self._unique_id
-
-    @property
-    def current_option(self):
-        return self._coordinator.data.get("dsp")
-
-    @property
-    def icon(self) -> str:
-        return "mdi:surround-sound"
+    def current_option(self) -> str | None:
+        if self._client.dsp is None:
+            return None
+        return DSP_MAP.get(self._client.dsp)
 
     async def async_select_option(self, option: str) -> None:
-        num = DSP_MAP_INV.get(option)
-        if num is not None:
-            command = f"!1sur.{num}"
-            await self._coordinator.async_send_command(command)
+        number = DSP_MAP_INV.get(option)
+        if number is None:
+            raise ServiceValidationError(f"Unbekannter DSP-Modus: {option}")
+        await self._send(self._client.set_dsp(number))
