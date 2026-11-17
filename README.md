@@ -2,132 +2,107 @@
 
 <img src="img/icon.png" alt="Primare" title="Primare" height="100"/>
 
-Unofficial Home Assistant integration for Primare amplifiers, preamplifiers and streamers of the Prisma generation, controlled over the local network. Not affiliated with Primare.
+Unofficial Home Assistant integration for Primare devices of the Prisma generation. Control power, volume, mute, input and DSP mode from Home Assistant – and optionally see what the built-in streamer is playing. Not affiliated with Primare.
 
 ## Supported devices
 
-| Type | Models | Tested |
-|---|---|---|
-| Multichannel (presets + DSP) | SP25, SPA25 | SP25 |
-| Stereo (inputs) | I15, I25, I35, SC15, Pre35 (Prisma) | Pre35 |
-| Network player (power + volume) | NP5, NP5 MKII | NP5 MKII |
+| Type | Models |
+|---|---|
+| Multichannel | SP25, SPA25 |
+| Stereo | I15, I25, I35, SC15, Pre35 (Prisma) |
+| Network player | NP5, NP5 MKII |
 
-Other Prisma models that speak the same TCP/IP API on port 50006 should work but are untested.
+Tested with SP25, Pre35 and NP5 MKII.
 
 ## Features
 
-- **Local push:** the device reports every change itself (remote, front panel, app) – no polling.
-- **Robust connection:** automatic reconnect with backoff, keepalive that detects silent connections, entities become *unavailable* while the device cannot be reached.
-- **One device per Primare** with a **media player** ("Control") that bundles power, volume, mute, source and DSP mode (sound mode).
-- **Options in the UI:** device type, input/preset names, maximum volume – no code changes needed.
-- **Maximum volume:** Home Assistant never sets a higher volume, whatever the source (slider, voice, automation, action). The device itself is not restricted.
-- **Prisma playback (optional):** what the built-in streamer is playing – title, artist, album, cover, position, sample rate, bit depth, format – plus play/pause/stop. See [below](#prisma-playback-luci).
-- **Actions** for stepping and fading the volume.
+- Changes made on the device, the remote or the Prisma app show up in Home Assistant immediately.
+- Reconnects on its own if the device was switched off or the network was interrupted.
+- One device per Primare with a media player for power, volume, mute, input and DSP mode.
+- Input names, device type and a maximum volume can be set in the UI.
+- Optional: what the built-in Prisma streamer is playing – title, artist, album, cover, audio format – with play, pause and stop.
+- Actions for stepping and fading the volume, e.g. for automations.
 
 ## Installation
 
-### HACS (custom repository)
+### HACS
 
-1. HACS → ⋮ → **Custom repositories** → `https://github.com/Sulzburg/primare`, category *Integration*.
-2. Download **Primare** and restart Home Assistant.
+1. HACS → ⋮ → **Custom repositories** → add `https://github.com/Sulzburg/primare` as *Integration*.
+2. Search for **Primare**, download it and restart Home Assistant.
 
 ### Manual
 
-1. Download the ZIP of the [latest release](https://github.com/Sulzburg/primare/releases).
-2. Copy the `primare` folder to `custom_components/` in your Home Assistant configuration directory.
+1. Download `primare.zip` from the [latest release](https://github.com/Sulzburg/primare/releases/latest).
+2. Unpack it into the `custom_components` folder of your Home Assistant configuration.
 3. Restart Home Assistant.
 
 ## Setup
 
-**Settings → Devices & services → Add integration → Primare**, then enter:
+**Settings → Devices & services → Add integration → Primare**
 
-- **IP address** of the device (give it a fixed address in your router)
-- **Port** – default `50006`
-- **Name** – becomes the device name and entity prefix, e.g. `SP25` → `switch.sp25_power`
+- **IP address** of the device – best give it a fixed address in your router
+- **Port** – leave it at `50006`
+- **Name** – e.g. `SP25`; your entities will be called `switch.sp25_power`, `number.sp25_volume` and so on
 - **Device type** – Multichannel, Stereo or Network player
 
-The connection is tested before the entry is created.
+### Options
 
-### Options ("Configure")
+Under **Configure** you can change:
 
-| Option | Meaning |
-|---|---|
-| Device type | Multichannel / Stereo / Network player |
-| Maximum volume | 1–99, default 99 (no limit) |
-| Inputs / presets | one line per input: `number = name`, e.g. `4 = HDMI ARC` (numbers 1–17) |
-| Show Prisma streamer playback | adds the playback media player (off by default) |
+- **Device type**
+- **Maximum volume** – Home Assistant will never turn the volume higher than this, whether by slider, voice command or automation. The device itself is not limited.
+- **Inputs** – one line per input, e.g. `4 = HDMI ARC`
+- **Show Prisma streamer playback** – see below
 
-IP address and port can be changed with **Reconfigure**.
+A new IP address can be entered under **Reconfigure**.
 
 ## Entities
 
 | Entity | Multichannel | Stereo | Network player |
 |---|---|---|---|
-| `media_player.<name>_steuerung` – control (power, volume, mute, source, sound mode) | ✓ | ✓ | power + volume |
-| `switch.<name>_power` | ✓ | ✓ | ✓ |
-| `switch.<name>_mute` | ✓ | ✓ | |
-| `number.<name>_volume` (0–99, ends at the maximum volume) | ✓ | ✓ | ✓ |
-| `select.<name>_input` | ✓ | ✓ | |
-| `select.<name>_dsp_mode` | ✓ | | |
-| `sensor.<name>_volume` (status, kept for compatibility) | ✓ | ✓ | ✓ |
-| `sensor.<name>_input` (status, kept for compatibility) | ✓ | ✓ | |
-| `sensor.<name>_dsp_mode` (status, kept for compatibility) | ✓ | | |
-| `button.<name>_vol_up` / `_vol_down` (kept for compatibility) | ✓ | ✓ | ✓ |
-| `media_player.<name>_wiedergabe` – Prisma playback (optional) | ✓ | ✓ | ✓ |
+| Media player "Steuerung" (power, volume, mute, input, DSP mode) | ✓ | ✓ | power and volume |
+| Power switch | ✓ | ✓ | ✓ |
+| Mute switch | ✓ | ✓ | |
+| Volume slider (0–99) | ✓ | ✓ | ✓ |
+| Input selection | ✓ | ✓ | |
+| DSP mode selection | ✓ | | |
+| Media player "Wiedergabe" (Prisma playback, optional) | ✓ | ✓ | ✓ |
 
-Volume is always the device's own value (0–99); the media player shows it as 0–100 %. The two media players are currently named in German ("Steuerung" = control, "Wiedergabe" = playback).
+There are also status sensors and volume up/down buttons.
 
 ## Actions
 
-| Action | Purpose |
-|---|---|
-| `primare.volume_up` / `primare.volume_down` | step the volume, `times` 1–10 |
-| `primare.volume_relative` | change by `delta`, as steps or absolute |
-| `primare.volume_fade` | fade to `target` over `duration_ms` with easing; a running fade on the same device is cancelled |
+- `primare.volume_up` / `primare.volume_down` – a few steps louder or quieter
+- `primare.volume_relative` – change the volume by a given amount
+- `primare.volume_fade` – fade smoothly to a target volume
 
-Select the device with `device_id` (recommended). `entry_id` and `device_name` still work.
+## Prisma playback
 
-## Prisma playback (LUCI)
-
-The Prisma streaming module has a second interface besides the documented API: **LUCI** on TCP port 7777. It reports what the streamer is playing, independent of which app or account started it. This part was written by **[yvos](https://github.com/yvos)** – thank you!
-
-Enable it per device under **Configure → Show Prisma streamer playback**.
+Turn it on per device under **Configure → Show Prisma streamer playback**. You get a media player that shows what the streamer is playing and lets you play, pause and stop – no matter which app started the music. Contributed by [yvos](https://github.com/yvos).
 
 Tested on a Pre35:
 
-| Source | Title/album | Cover | Sample rate / bits | Format | Bit rate | Play/pause |
-|---|---|---|---|---|---|---|
-| Roon | ✓ | – | ✓ | pcm | – | ✓ (Roon follows) |
-| Tidal (Prisma app) | ✓ | ✓ | ✓ | FLAC | ✓ | ✓ |
-| Qobuz (Prisma app) | ✓ | ✓ | ✓ | FLAC | ✓ | not tested |
-| UPnP / MinimServer (Prisma app) | ✓ | ✓ | ✓ | FLAC | see below | ✓ |
-| Qobuz via Chromecast | ✓ | ? | bits only | – | – | not tested |
+| Source | Title & album | Cover | Audio format | Play / pause |
+|---|---|---|---|---|
+| Roon | ✓ | – | ✓ | ✓ |
+| Tidal (Prisma app) | ✓ | ✓ | ✓ | ✓ |
+| Qobuz (Prisma app) | ✓ | ✓ | ✓ | |
+| UPnP, e.g. MinimServer (Prisma app) | ✓ | ✓ | ✓ | ✓ |
+| Chromecast | ✓ | | partly | |
 
-Known limitations:
+Good to know:
 
-- **Next / previous / seek** are not offered on the Pre35 – the device never reports them as available.
-- **Bit rate** appears to be reported in bytes/s for UPnP sources.
-- **Switching directly between Tidal and Qobuz** in the Prisma app confuses the device: position and track changes are wrong afterwards – the Prisma app shows the same. Stop playback before switching services.
-- LUCI has **no authentication**; anyone on the local network can talk to it. The integration only sends the few messages whose effect is known.
+- Next, previous and seeking are not available on the Pre35.
+- Switching directly between Tidal and Qobuz in the Prisma app can confuse the device (wrong track time). Stop playback before switching services.
 
-Background on LUCI: [aiolibresync](https://github.com/drsound/aiolibresync) (detailed protocol documentation) and [ha-libre-luci](https://github.com/six3six/ha-libre-luci).
+## Upgrading from version 1
 
-## Upgrading from 1.x
-
-Entity IDs are kept. On first start the internal IDs are migrated and the entities are attached to a new device per Primare. Your automations and dashboards keep working. Input names are taken over; set them under **Configure** if you used different ones.
-
-## Tests
-
-```bash
-python -m unittest discover -s tests
-```
-
-The tests run against simulated devices and do not need Home Assistant.
+Your entity IDs stay the same, so automations and dashboards keep working. Restart Home Assistant after updating.
 
 ## Credits
 
-- [yvos](https://github.com/yvos) – Prisma playback via LUCI, tests and HACS validation
-- [aiolibresync](https://github.com/drsound/aiolibresync) and [ha-libre-luci](https://github.com/six3six/ha-libre-luci) – LUCI documentation
+- [yvos](https://github.com/yvos) – Prisma playback
+- [aiolibresync](https://github.com/drsound/aiolibresync) and [ha-libre-luci](https://github.com/six3six/ha-libre-luci) – background on the Prisma streaming module
 
 ## License
 
