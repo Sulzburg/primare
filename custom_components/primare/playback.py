@@ -240,6 +240,10 @@ class PrimarePlayback(CoordinatorEntity, MediaPlayerEntity):
     def _update_position(self, playback: Playback | None, now) -> None:
         track = playback.track if playback else None
         position = playback.position if playback else None
+        duration = playback.duration if playback else None
+        if position is not None and duration and position > duration + 2:
+            # Gerät zählt falsch (z. B. nach Tidal↔Qobuz-Wechsel) – lieber keine Position
+            position = None
         # Beim Spielen braucht auch ein Zurückspulen auf dieselbe Zahl einen neuen Zeitstempel
         if track == self._track and self._attr_state != MediaPlayerState.PLAYING and (
             position == self._attr_media_position
@@ -259,11 +263,13 @@ class PrimarePlayback(CoordinatorEntity, MediaPlayerEntity):
             | MediaPlayerEntityFeature.PAUSE
             | MediaPlayerEntityFeature.STOP
         )
-        if playback.can_next:
+        # Many devices (e.g. Pre35) do not report Next/Prev at all, yet the
+        # commands work – offer them unless the device explicitly refuses.
+        if playback.can_next is not False:
             features |= MediaPlayerEntityFeature.NEXT_TRACK
-        if playback.can_previous:
+        if playback.can_previous is not False:
             features |= MediaPlayerEntityFeature.PREVIOUS_TRACK
-        if playback.can_seek:
+        if playback.can_seek is True:
             features |= MediaPlayerEntityFeature.SEEK
         return features
 

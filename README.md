@@ -20,7 +20,7 @@ Tested with SP25, Pre35 and NP5 MKII.
 - Reconnects on its own if the device was switched off or the network was interrupted.
 - One device per Primare with a media player for power, volume, mute, input and DSP mode.
 - Input names, device type and a maximum volume can be set in the UI.
-- Optional: what the built-in Prisma streamer is playing – title, artist, album, cover, audio format – with play, pause and stop.
+- Optional: what the built-in Prisma streamer is playing – title, artist, album, cover, audio format – with play, pause, stop and skip.
 - Actions for stepping and fading the volume, e.g. for automations.
 
 ## Installation
@@ -78,13 +78,13 @@ There are also status sensors and volume up/down buttons.
 
 ## Prisma playback
 
-Turn it on per device under **Configure → Show Prisma streamer playback**. You get a media player that shows what the streamer is playing and lets you play, pause and stop – no matter which app started the music. Contributed by [yvos](https://github.com/yvos).
+Turn it on per device under **Configure → Show Prisma streamer playback**. You get a media player that shows what the streamer is playing and lets you play, pause, stop and skip tracks – no matter which app started the music. Contributed by [yvos](https://github.com/yvos).
 
-Tested on a Pre35:
+Tested on Pre35 and SP25:
 
 | Source | Title & album | Cover | Audio format | Play / pause |
 |---|---|---|---|---|
-| Roon | ✓ | – | ✓ | ✓ |
+| Roon | ✓ | – | ✓ | ✓ (also skip) |
 | Tidal (Prisma app) | ✓ | ✓ | ✓ | ✓ |
 | Qobuz (Prisma app) | ✓ | ✓ | ✓ | |
 | UPnP, e.g. MinimServer (Prisma app) | ✓ | ✓ | ✓ | ✓ |
@@ -92,8 +92,8 @@ Tested on a Pre35:
 
 Good to know:
 
-- Next, previous and seeking are not available on the Pre35.
-- Switching directly between Tidal and Qobuz in the Prisma app can confuse the device (wrong track time). Stop playback before switching services.
+- Seeking within a track is not available.
+- Switching directly between Tidal and Qobuz in the Prisma app can confuse the device. Stop playback before switching services; if it happens, unplug the device briefly.
 
 ## Upgrading from version 1
 
