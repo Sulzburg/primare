@@ -1,7 +1,9 @@
 """Read and control playback on the Primare streaming module (LUCI).
 
 Written by yvos (https://github.com/yvos) for Sulzburg/primare, pull request #3.
-Taken over unchanged apart from this header. MIT License.
+MIT License. Changes since: Next/Prev/Seek are None when the device does not
+report them (instead of False), the PlayView fields are logged at debug level,
+and position pushes beyond the track length are ignored.
 """
 
 import asyncio
@@ -28,6 +30,7 @@ ACK_TIMEOUT = 0.5
 PUSH_SETTLE = 0.15
 POSITION_TOLERANCE = 1.5
 POSITION_MAX_AGE = 3.0
+POSITION_SLACK = 2.0
 TRACK_GAP = 2.0
 STATE_KEEP_SECONDS = 10
 _BUFFERING_STATES = (3, 4, 5)
@@ -52,9 +55,10 @@ class Playback:
     bit_rate_bps: int | None = None
     cover_art_url: str | None = None
     source_app: str | None = None
-    can_next: bool = False
-    can_previous: bool = False
-    can_seek: bool = False
+    # None = the device does not say (e.g. Pre35); False = it explicitly refuses
+    can_next: bool | None = None
+    can_previous: bool | None = None
+    can_seek: bool | None = None
 
     @property
     def track(self) -> tuple:
@@ -95,6 +99,10 @@ def _number(value):
     return None
 
 
+def _flag(value):
+    return value if isinstance(value, bool) else None
+
+
 def _positive(value):
     number = _number(value)
     return number if number is not None and number > 0 else None
@@ -110,6 +118,12 @@ def _playback(payload: bytes, state: int) -> Playback:
 
     duration = _positive(view.get("TotalTime"))
     position = _number(view.get("Current_time"))
+    if _LOGGER.isEnabledFor(logging.DEBUG):
+        # Field names plus the capability flags; no URLs (they may carry tokens)
+        _LOGGER.debug(
+            "PlayView fields %s; Next=%r Prev=%r Seek=%r",
+            sorted(view), view.get("Next"), view.get("Prev"), view.get("Seek"),
+        )
     return Playback(
         state,
         title=_text(view.get("TrackName")),
@@ -123,9 +137,9 @@ def _playback(payload: bytes, state: int) -> Playback:
         bit_rate_bps=_positive(view.get("BitRate")),
         cover_art_url=_cover_url(view.get("CoverArtUrl")),
         source_app=_text(view.get("CastContentApp")),
-        can_next=view.get("Next") is True,
-        can_previous=view.get("Prev") is True,
-        can_seek=view.get("Seek") is True,
+        can_next=_flag(view.get("Next")),
+        can_previous=_flag(view.get("Prev")),
+        can_seek=_flag(view.get("Seek")),
     )
 
 
@@ -342,7 +356,14 @@ class LuciPlaybackClient:
                 self._device_position = None
             self._metadata = metadata
         elif box == POSITION:
-            self._device_position = _position(payload), asyncio.get_running_loop().time()
+            position = _position(payload)
+            duration = self._metadata.duration if self._metadata else None
+            if position is not None and duration and position > duration + POSITION_SLACK:
+                # A stale session on the device (e.g. after switching Tidal <-> Qobuz)
+                # keeps pushing its own counter – ignore it instead of jumping.
+                _LOGGER.debug("Ignoring LUCI position %.0f s beyond track length %.0f s", position, duration)
+                return
+            self._device_position = position, asyncio.get_running_loop().time()
         elif box == SPEAKER:
             # Do not let an inactive event override a confirmed pause or play.
             if self._pending_state == 1 and _ascii(payload).startswith("SPEAKER_INACTIVE,"):
