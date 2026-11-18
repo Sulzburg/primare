@@ -338,7 +338,7 @@ class LuciPlaybackClient:
     def _dispatch(self, box: int, status: int, payload: bytes) -> None:
         if box != POSITION and _LOGGER.isEnabledFor(logging.DEBUG):
             # Everything the device sends, also boxes not evaluated (diagnosis)
-            _LOGGER.debug("LUCI frame box %#04x status %s: %r", box, status, payload[:600])
+            _LOGGER.debug("LUCI %s frame box %#04x status %s: %r", self._host, box, status, payload[:600])
         if status == 3 and box == 0:
             # The NP5 uses box zero when a request arrives before registration.
             reply = next(iter(self._replies.values()), None)
