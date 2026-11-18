@@ -1,7 +1,11 @@
 """The combined media player (3.0): amplifier and streamer in one entity."""
 
 import asyncio
+from dataclasses import replace
+from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 import unittest
+from unittest import mock
 
 from ha_stub import install
 
@@ -177,6 +181,23 @@ class TransitionTest(unittest.TestCase):
         c.volume = 30
         p._handle_update()
         self.assertEqual(s.invalidated, 0)
+
+    def test_amplifier_change_keeps_track_position(self):
+        # The streamer does not push positions that follow the clock, so the last
+        # one can be a minute old: a volume change must not restart the clock there.
+        start = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
+        now = [start]
+        clock = SimpleNamespace(utcnow=lambda: now[0])
+        with mock.patch("custom_components.primare.media_player.dt_util", clock):
+            p, c, s = player(input=13, playback=PLAYING)
+            now[0] += timedelta(seconds=40)
+            c.volume = 30
+            p._handle_update()
+            self.assertEqual((p._attr_media_position, p._attr_media_position_updated_at), (110, start))
+
+            s.playback = replace(PLAYING, position=150)
+            p._handle_streamer_update()
+            self.assertEqual((p._attr_media_position, p._attr_media_position_updated_at), (150, now[0]))
 
 
 class CommandTest(unittest.TestCase):

@@ -55,6 +55,7 @@ class PrimareMediaPlayer(PrimareEntity, MediaPlayerEntity):
         self._streamer = streamer
         self._was_streaming: bool | None = None
         self._track = None
+        self._last_playback: Playback | None = None
         p = self._profile
         features = (
             MediaPlayerEntityFeature.TURN_ON
@@ -156,7 +157,12 @@ class PrimareMediaPlayer(PrimareEntity, MediaPlayerEntity):
             if playback.can_seek is True:
                 features |= MediaPlayerEntityFeature.SEEK
         self._attr_supported_features = features
-        self._update_position(playback)
+        # Amplifier updates leave the streamer data as it was; its position can be up
+        # to one resync old (positions that follow the clock are not pushed), so only
+        # new streamer data may move the position and its timestamp.
+        if playback is not self._last_playback:
+            self._last_playback = playback
+            self._update_position(playback)
 
     def _update_position(self, playback: Playback | None) -> None:
         track = playback.track if playback else None
