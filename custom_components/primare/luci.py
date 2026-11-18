@@ -392,6 +392,7 @@ class LuciPlaybackClient:
                 # keeps pushing its own counter – ignore it instead of jumping.
                 _LOGGER.debug("Ignoring LUCI position %.0f s beyond track length %.0f s", position, duration)
                 return
+            _LOGGER.debug("LUCI position %s (push=%s)", position, pushed)
             self._device_position = position, asyncio.get_running_loop().time()
         elif box in (SOURCE, SOURCE_ALT):
             source = _number(_ascii(payload))
@@ -493,6 +494,11 @@ class LuciPlaybackClient:
         if snapshot is None:
             return
         if last is not None and replace(snapshot, position=None) == replace(last, position=None):
+            if not snapshot.duration:
+                # No track length (internet radio, live stream): the device's position
+                # counter does not follow the clock and is pushed twice a second –
+                # a position-only change is no news there.
+                return
             if snapshot.position is not None and snapshot.position == last.position:
                 # A counter that does not move while playing is no news (internet radio
                 # over UPnP pushes one twice a second) – a real seek changes the value.

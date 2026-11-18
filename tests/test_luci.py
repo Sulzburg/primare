@@ -411,6 +411,8 @@ class LuciTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.connections, 3)
 
     async def test_regular_playing_positions_do_not_publish_but_seek_does(self):
+        # A track with a length – without one (radio) position changes are not published.
+        self.play_view = {"TrackName": "Track", "TotalTime": 300000}
         updates = asyncio.Queue()
         self.client.subscribe(updates.put_nowait)
         self.position_reply = frame(luci.POSITION, b"-1000")
@@ -438,8 +440,9 @@ class LuciTest(unittest.IsolatedAsyncioTestCase):
         self.play_view = {"TrackName": "Radio", "TotalTime": 0}
         self.position_reply = frame(luci.POSITION, b"-1000")
         await self.client.async_read()
-        for _ in range(6):
-            self.writer.write(frame(luci.POSITION, b"0", 0))
+        # Constant, jumping and alternating counters – none of it follows the clock.
+        for value in (b"0", b"0", b"5000", b"0", b"120000", b"3000"):
+            self.writer.write(frame(luci.POSITION, value, 0))
             await self.writer.drain()
             await asyncio.sleep(0.5)
         await asyncio.sleep(luci.PUSH_SETTLE * 2)
