@@ -48,6 +48,11 @@ class ParseTest(unittest.TestCase):
         foreign = DESCRIPTION.replace("/upnp/control/rendertransport1", "http://203.0.113.9/x")
         self.assertIsNone(identity.parse_av_transport_url(foreign, "http://192.0.2.5/d.xml"))
 
+    def test_chunked_answer(self):
+        body = TRANSPORT.encode()
+        chunked = b"%x\r\n" % 40 + body[:40] + b"\r\n" + b"%x\r\n" % (len(body) - 40) + body[40:] + b"\r\n0\r\n\r\n"
+        self.assertEqual(identity._dechunk(chunked), body)
+
     def test_state_and_title(self):
         self.assertEqual(identity.parse_transport_state(TRANSPORT), "PLAYING")
         self.assertEqual(identity.parse_media_title(MEDIA), "Radio BOB! Hard Rock")

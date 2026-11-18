@@ -463,6 +463,27 @@ class LuciTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(changed.source_id, 2)
         self.assertIsNone(changed.title)
 
+    async def test_resent_title_of_previous_source_is_ignored(self):
+        updates = asyncio.Queue()
+        self.client.subscribe(updates.put_nowait)
+        self.play_view = {"TrackName": "Pneuma", "Artist": "Tool", "TotalTime": 713000}
+        await self.client.async_read()
+        self.writer.write(frame(luci.SOURCE, b"27", 0))
+        await self.writer.drain()
+        await asyncio.wait_for(updates.get(), 1)
+        self.writer.write(frame(luci.SOURCE, b"2", 0))
+        await self.writer.drain()
+        self.assertIsNone((await asyncio.wait_for(updates.get(), 1)).title)
+        old = json.dumps({"Window CONTENTS": {"TrackName": "Pneuma", "Artist": "Tool", "TotalTime": 713000}})
+        self.writer.write(frame(luci.PLAY_VIEW_PUSH, old.encode(), 0))
+        await self.writer.drain()
+        await asyncio.sleep(luci.PUSH_SETTLE * 3)
+        self.assertTrue(updates.empty())
+        new = json.dumps({"Window CONTENTS": {"TrackName": "Radio", "TotalTime": 0}})
+        self.writer.write(frame(luci.PLAY_VIEW_PUSH, new.encode(), 0))
+        await self.writer.drain()
+        self.assertEqual((await asyncio.wait_for(updates.get(), 1)).title, "Radio")
+
     async def test_shutdown_closes_and_prevents_reconnection(self):
         await self.client.async_read()
         await self.client.async_shutdown()

@@ -194,8 +194,10 @@ async def async_soap(url: str, action: str, *, timeout: float = 3.0) -> str | No
         "</s:Body></s:Envelope>"
     ).encode()
     path = parts.path or "/"
+    if parts.query:
+        path += "?" + parts.query
     request = (
-        f"POST {path} HTTP/1.0\r\nHost: {parts.netloc}\r\n"
+        f"POST {path} HTTP/1.1\r\nHost: {parts.netloc}\r\n"
         'Content-Type: text/xml; charset="utf-8"\r\n'
         f'SOAPACTION: "{AV_TRANSPORT}#{action}"\r\n'
         f"Content-Length: {len(body)}\r\nConnection: close\r\n\r\n"
@@ -215,9 +217,27 @@ async def async_soap(url: str, action: str, *, timeout: float = 3.0) -> str | No
         _LOGGER.debug("UPnP %s at %s failed: %s", action, url, err)
         return None
     head, _, response = data.partition(b"\r\n\r\n")
-    if not head.startswith(b"HTTP/") or b" 200 " not in head.split(b"\r\n", 1)[0] + b" ":
+    status = head.split(b"\r\n", 1)[0]
+    if not head.startswith(b"HTTP/") or b" 200 " not in status + b" ":
+        _LOGGER.debug("UPnP %s at %s: %r %r", action, url, status[:80], response[:200])
         return None
+    if b"chunked" in head.lower():
+        response = _dechunk(response)
     return response.decode("utf-8", "replace")
+
+
+def _dechunk(data: bytes) -> bytes:
+    out, rest = b"", data
+    while rest:
+        size_line, _, rest = rest.partition(b"\r\n")
+        try:
+            size = int(size_line.split(b";")[0].strip() or b"0", 16)
+        except ValueError:
+            return out + rest
+        if size == 0:
+            break
+        out, rest = out + rest[:size], rest[size + 2 :]
+    return out
 
 
 async def async_read_transport(location: str) -> dict[str, str | None] | None:
@@ -225,11 +245,19 @@ async def async_read_transport(location: str) -> dict[str, str | None] | None:
     control = _CONTROL_URLS.get(location)
     if control is None:
         text = await async_fetch(location)
-        if text is None or (control := parse_av_transport_url(text, location)) is None:
+        if text is None:
+            _LOGGER.debug("UPnP description %s not readable", location)
             return None
+        if (control := parse_av_transport_url(text, location)) is None:
+            _LOGGER.debug("No AVTransport control URL in %s", location)
+            return None
+        _LOGGER.debug("UPnP AVTransport control URL %s", control)
         _CONTROL_URLS[location] = control
     info = await async_soap(control, "GetTransportInfo")
-    if info is None or (state := parse_transport_state(info)) is None:
+    if info is None:
+        return None
+    if (state := parse_transport_state(info)) is None:
+        _LOGGER.debug("No transport state in UPnP answer %r", info[:200])
         return None
     media = await async_soap(control, "GetMediaInfo") if state == "PLAYING" else None
     return {"state": state, "title": parse_media_title(media) if media else None}

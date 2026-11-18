@@ -48,6 +48,7 @@ POSITION_TOLERANCE = 1.5
 POSITION_MAX_AGE = 3.0
 POSITION_SLACK = 2.0
 TRACK_GAP = 2.0
+STALE_AFTER_SOURCE = 5.0  # s: the device may resend the previous app's title
 STATE_KEEP_SECONDS = 10
 _BUFFERING_STATES = (3, 4, 5)
 _LOGGER = logging.getLogger(__name__)
@@ -205,6 +206,8 @@ class LuciPlaybackClient:
         self._transition_handle: asyncio.TimerHandle | None = None
         self._pending_state: int | None = None
         self._source_id: int | None = None
+        self._stale_track: tuple | None = None
+        self._stale_until = 0.0
         self._syncing = False
         self._stopping = False
 
@@ -378,6 +381,14 @@ class LuciPlaybackClient:
         elif box in (PLAY_VIEW, PLAY_VIEW_PUSH):
             # PlayView's state can be stale after a Spotify pause. Use 0x33.
             metadata = _playback(payload, 0)
+            if (
+                self._stale_track is not None
+                and metadata.track == self._stale_track
+                and asyncio.get_running_loop().time() < self._stale_until
+            ):
+                # Pre35, 18.11.2026: right after Roon -> UPnP it sent Roon's title once more.
+                _LOGGER.debug("Ignoring previous source's title after a source change")
+                return
             track_changed = self._metadata is not None and metadata.track != self._metadata.track
             if track_changed or (
                 pushed and (self._pending_state is not None or self._state in (1, *_BUFFERING_STATES))
@@ -401,6 +412,9 @@ class LuciPlaybackClient:
             if self._source_id is not None:
                 # Another app took over (e.g. Roon -> UPnP): the new title follows about
                 # 2 s later – rather no title than the old one under the new source.
+                if self._metadata is not None:
+                    self._stale_track = self._metadata.track
+                    self._stale_until = asyncio.get_running_loop().time() + STALE_AFTER_SOURCE
                 self._metadata = self._device_position = None
             self._source_id = source
         elif box == SPEAKER:
