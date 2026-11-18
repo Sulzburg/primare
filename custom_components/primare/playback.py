@@ -22,11 +22,15 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 
 from . import PrimareConfigEntry
 from .const import CONF_HOST, DOMAIN
+from .identity import async_read_transport
 from .luci import LuciPlaybackClient, Playback
 
 _LOGGER = logging.getLogger(__name__)
 RESYNC_INTERVAL = timedelta(seconds=60)
 RECONNECT_DELAY = 5
+TITLE_RETRY = 3  # no title while playing: read it again
+UPNP_DELAY = 3  # after LUCI reports idle on the streamer input
+UPNP_REPEAT = 15  # while UPnP says it still plays
 STATES = {
     0: MediaPlayerState.PLAYING,
     1: MediaPlayerState.IDLE,
@@ -63,6 +67,8 @@ class StreamerPlayback:
         self._initial_sync = None
         self._running = False
         self._stale = False
+        self._upnp: dict | None = None
+        self._cancel_upnp: Callable[[], None] | None = None
 
     # ---------------------------------------------------------------- lifecycle
     def add_listener(self, listener: Callable[[], None]) -> Callable[[], None]:
@@ -73,7 +79,7 @@ class StreamerPlayback:
     def async_start(self) -> None:
         self._running = True
         entry = self._entry
-        entry.async_on_unload(self._coordinator.async_add_listener(self._notify))
+        entry.async_on_unload(self._coordinator.async_add_listener(self._handle_coordinator_update))
         entry.async_on_unload(self._luci.subscribe(self._handle_luci_event))
         # Fixed rhythm, even while position pushes keep coming
         entry.async_on_unload(
@@ -98,6 +104,7 @@ class StreamerPlayback:
             return
         self._running = False
         self._cancel_scheduled_sync()
+        self._cancel_upnp_check()
         if self._initial_sync is not None:
             self._initial_sync.cancel()
             self._initial_sync = None
@@ -110,7 +117,7 @@ class StreamerPlayback:
         """Latest playback, or None while unknown (no answer yet, error, just woke up)."""
         if self._stale or not self._coordinator.last_update_success:
             return None
-        return self._coordinator.data
+        return apply_upnp(self._coordinator.data, self._upnp)
 
     @callback
     def async_invalidate(self) -> None:
@@ -118,6 +125,58 @@ class StreamerPlayback:
         self._stale = True
         self._notify()
         self._schedule_sync(1)
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        self._maybe_check_upnp()
+        self._notify()
+
+    # ------------------------------------------------------------- UPnP check
+    def _on_stream_input(self) -> bool:
+        runtime = self._entry.runtime_data
+        client, profile = runtime.client, runtime.profile
+        if not client.power:
+            return False
+        if not profile.has_input or profile.stream_input is None:
+            return True
+        return client.input == profile.stream_input
+
+    @callback
+    def _maybe_check_upnp(self) -> None:
+        """LUCI says idle on the streamer input – ask the UPnP renderer once more."""
+        data = self._coordinator.data if self._coordinator.last_update_success else None
+        if (
+            not self._running
+            or data is None
+            or data.state != 1
+            or not self._entry.runtime_data.location
+            or not self._on_stream_input()
+        ):
+            self._upnp = None
+            self._cancel_upnp_check()
+            return
+        if self._cancel_upnp is None:
+            self._cancel_upnp = async_call_later(self._hass, UPNP_DELAY, self._async_check_upnp)
+
+    @callback
+    def _cancel_upnp_check(self) -> None:
+        if self._cancel_upnp is not None:
+            self._cancel_upnp()
+            self._cancel_upnp = None
+
+    async def _async_check_upnp(self, _now) -> None:
+        self._cancel_upnp = None
+        location = self._entry.runtime_data.location
+        if not self._running or not location:
+            return
+        result = await async_read_transport(location)
+        playing = result if result and result.get("state") == "PLAYING" else None
+        _LOGGER.debug("%s: LUCI idle, UPnP says %s", self._entry.title, result)
+        if playing != self._upnp:
+            self._upnp = playing
+            self._notify()
+        if playing and self._running:
+            self._cancel_upnp = async_call_later(self._hass, UPNP_REPEAT, self._async_check_upnp)
 
     @callback
     def _notify(self) -> None:
@@ -144,6 +203,9 @@ class StreamerPlayback:
             self._cancel_scheduled_sync()
             self._stale = False
             self._coordinator.async_set_updated_data(update)
+            if update.state in (0, 2) and update.title is None:
+                # Title dropped on a source change, or not sent yet: ask for it shortly.
+                self._schedule_sync(TITLE_RETRY)
 
     @callback
     def _cancel_scheduled_sync(self) -> None:
@@ -197,6 +259,13 @@ class StreamerPlayback:
                 self._handle_luci_event(err)
             raise HomeAssistantError(f"Streamer not controllable: {err}") from err
         self._schedule_sync(1)
+
+
+def apply_upnp(playback: Playback | None, upnp: dict | None) -> Playback | None:
+    """LUCI idle, but the UPnP renderer plays: show that, with the title UPnP knows."""
+    if playback is None or upnp is None or playback.state != 1 or upnp.get("state") != "PLAYING":
+        return playback
+    return Playback(0, title=upnp.get("title"), source_id=playback.source_id)
 
 
 def format_firmware(main: object, streaming: object, cast: object = None) -> str | None:

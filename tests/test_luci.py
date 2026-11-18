@@ -448,6 +448,21 @@ class LuciTest(unittest.IsolatedAsyncioTestCase):
         await asyncio.sleep(luci.PUSH_SETTLE * 2)
         self.assertLessEqual(updates.qsize(), 1)
 
+    async def test_source_change_drops_the_old_title(self):
+        updates = asyncio.Queue()
+        self.client.subscribe(updates.put_nowait)
+        self.play_view = {"TrackName": "Zebra", "TotalTime": 300000}
+        await self.client.async_read()
+        self.writer.write(frame(luci.SOURCE, b"27", 0))
+        await self.writer.drain()
+        first = await asyncio.wait_for(updates.get(), 1)
+        self.assertEqual(first.source_id, 27)
+        self.writer.write(frame(luci.SOURCE, b"2", 0))
+        await self.writer.drain()
+        changed = await asyncio.wait_for(updates.get(), 1)
+        self.assertEqual(changed.source_id, 2)
+        self.assertIsNone(changed.title)
+
     async def test_shutdown_closes_and_prevents_reconnection(self):
         await self.client.async_read()
         await self.client.async_shutdown()

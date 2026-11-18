@@ -17,7 +17,7 @@ import html
 import logging
 import re
 import socket
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -141,3 +141,95 @@ async def async_read_identity(host: str, location: str | None = None) -> dict[st
                 return {**info, "location": found}
     _LOGGER.debug("%s: no UPnP identity", host)
     return {}
+
+
+# --------------------------------------------------------------------------------------
+# Playback state from the device's own UPnP renderer (read-only).
+#
+# Over LUCI the Pre35 can report "idle" while it plays a stream that was replaced via
+# UPnP (18.11.2026: Radio BOB station switched by an automation). Its UPnP renderer
+# still knows – ask it, only in that case. Two read-only actions, no commands:
+# GetTransportInfo (state) and GetMediaInfo (title of what is loaded).
+
+AV_TRANSPORT = "urn:schemas-upnp-org:service:AVTransport:1"
+_CONTROL_URLS: dict[str, str] = {}
+
+
+def parse_av_transport_url(text: str, location: str) -> str | None:
+    """Control URL of the AVTransport service, only on the device's own host."""
+    for block in re.findall(r"<service>(.*?)</service>", text, re.S):
+        if _field(block, "serviceType") == AV_TRANSPORT and (path := _field(block, "controlURL")):
+            url = urljoin(location, path)
+            if urlsplit(url).hostname == urlsplit(location).hostname:
+                return url
+    return None
+
+
+def parse_transport_state(text: str) -> str | None:
+    return _field(text, "CurrentTransportState")
+
+
+def parse_media_title(text: str) -> str | None:
+    """dc:title from GetMediaInfo's CurrentURIMetaData (DIDL-Lite, escaped inside SOAP)."""
+    match = re.search(r"<CurrentURIMetaData>(.*?)</CurrentURIMetaData>", text, re.S)
+    if not match:
+        return None
+    didl = html.unescape(match.group(1))
+    title = re.search(r"<dc:title>\s*([^<]{1,200}?)\s*</dc:title>", didl)
+    if not title:
+        return None
+    return html.unescape(title.group(1)).strip() or None
+
+
+async def async_soap(url: str, action: str, *, timeout: float = 3.0) -> str | None:
+    """One read-only AVTransport action (InstanceID 0); plain HTTP/1.0, size-limited."""
+    parts = urlsplit(url)
+    if parts.scheme != "http" or not parts.hostname:
+        return None
+    body = (
+        '<?xml version="1.0" encoding="utf-8"?>'
+        '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" '
+        's:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body>'
+        f'<u:{action} xmlns:u="{AV_TRANSPORT}"><InstanceID>0</InstanceID></u:{action}>'
+        "</s:Body></s:Envelope>"
+    ).encode()
+    path = parts.path or "/"
+    request = (
+        f"POST {path} HTTP/1.0\r\nHost: {parts.netloc}\r\n"
+        'Content-Type: text/xml; charset="utf-8"\r\n'
+        f'SOAPACTION: "{AV_TRANSPORT}#{action}"\r\n'
+        f"Content-Length: {len(body)}\r\nConnection: close\r\n\r\n"
+    ).encode("ascii") + body
+    try:
+        async with asyncio.timeout(timeout):
+            reader, writer = await asyncio.open_connection(parts.hostname, parts.port or 80)
+            try:
+                writer.write(request)
+                await writer.drain()
+                data = await reader.read(MAX_DESCRIPTION)
+            finally:
+                writer.close()
+                with contextlib.suppress(Exception):
+                    await writer.wait_closed()
+    except (OSError, TimeoutError, UnicodeEncodeError) as err:
+        _LOGGER.debug("UPnP %s at %s failed: %s", action, url, err)
+        return None
+    head, _, response = data.partition(b"\r\n\r\n")
+    if not head.startswith(b"HTTP/") or b" 200 " not in head.split(b"\r\n", 1)[0] + b" ":
+        return None
+    return response.decode("utf-8", "replace")
+
+
+async def async_read_transport(location: str) -> dict[str, str | None] | None:
+    """{"state": "PLAYING"|…, "title": …} from the device's UPnP renderer, or None."""
+    control = _CONTROL_URLS.get(location)
+    if control is None:
+        text = await async_fetch(location)
+        if text is None or (control := parse_av_transport_url(text, location)) is None:
+            return None
+        _CONTROL_URLS[location] = control
+    info = await async_soap(control, "GetTransportInfo")
+    if info is None or (state := parse_transport_state(info)) is None:
+        return None
+    media = await async_soap(control, "GetMediaInfo") if state == "PLAYING" else None
+    return {"state": state, "title": parse_media_title(media) if media else None}

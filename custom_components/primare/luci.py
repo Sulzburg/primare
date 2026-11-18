@@ -398,6 +398,10 @@ class LuciPlaybackClient:
             source = _number(_ascii(payload))
             if source is None or source == self._source_id:
                 return
+            if self._source_id is not None:
+                # Another app took over (e.g. Roon -> UPnP): the new title follows about
+                # 2 s later – rather no title than the old one under the new source.
+                self._metadata = self._device_position = None
             self._source_id = source
         elif box == SPEAKER:
             # Do not let an inactive event override a confirmed pause or play.
