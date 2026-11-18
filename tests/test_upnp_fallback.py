@@ -5,6 +5,7 @@ import importlib.util
 from pathlib import Path
 import sys
 import unittest
+from unittest.mock import AsyncMock, patch
 
 from ha_stub import install
 
@@ -83,26 +84,85 @@ class ReadTransportTest(unittest.IsolatedAsyncioTestCase):
             reply = TRANSPORT.replace("PLAYING", self.state)
         else:
             reply = MEDIA
-        writer.write(f"HTTP/1.1 200 OK\r\n\r\n{reply}".encode())
+        # Headers and body in separate packets, as some devices send them
+        writer.write(b"HTTP/1.1 200 OK\r\n\r\n")
+        await writer.drain()
+        await asyncio.sleep(0.01)
+        writer.write(reply.encode())
         await writer.drain()
         writer.close()
 
+    def find(self, result):
+        return patch.object(identity, "async_find_location", AsyncMock(return_value=result))
+
     async def test_playing_with_title(self):
-        info = await identity.async_read_transport(self.location)
+        with self.find(None):
+            info, location = await identity.async_read_transport("127.0.0.1", self.location)
         self.assertEqual(info, {"state": "PLAYING", "title": "Radio BOB! Hard Rock"})
+        self.assertEqual(location, self.location)
         # Only read-only actions are sent
         actions = [r for r in self.requests if r.startswith(b"POST")]
         self.assertTrue(all(b"GetTransportInfo" in r or b"GetMediaInfo" in r for r in actions))
 
     async def test_stopped_asks_no_title_and_description_is_cached(self):
         self.state = "STOPPED"
-        self.assertEqual(await identity.async_read_transport(self.location), {"state": "STOPPED", "title": None})
-        await identity.async_read_transport(self.location)
+        with self.find(None):
+            info, _ = await identity.async_read_transport("127.0.0.1", self.location)
+            self.assertEqual(info, {"state": "STOPPED", "title": None})
+            await identity.async_read_transport("127.0.0.1", self.location)
         self.assertEqual(sum(r.startswith(b"GET") for r in self.requests), 1)
         self.assertFalse(any(b"GetMediaInfo" in r for r in self.requests))
 
     async def test_unreachable_device(self):
-        self.assertIsNone(await identity.async_read_transport("http://127.0.0.1:9/description.xml"))
+        with self.find(None) as find:
+            info, location = await identity.async_read_transport("127.0.0.1", "http://127.0.0.1:9/description.xml")
+        self.assertIsNone(info)
+        self.assertEqual(location, "http://127.0.0.1:9/description.xml")
+        find.assert_awaited_once()
+
+    async def test_old_address_is_searched_again(self):
+        """After a restart the renderer answers on a new port: find it and use it."""
+        with self.find(self.location) as find:
+            info, location = await identity.async_read_transport("127.0.0.1", "http://127.0.0.1:9/description.xml")
+        find.assert_awaited_once()
+        self.assertEqual(location, self.location)
+        self.assertEqual(info["state"], "PLAYING")
+
+    async def test_no_known_address_is_searched(self):
+        with self.find(self.location):
+            info, location = await identity.async_read_transport("127.0.0.1", None)
+        self.assertEqual((info["state"], location), ("PLAYING", self.location))
+
+    async def test_address_of_another_host_is_not_used(self):
+        with self.find(None):
+            info, _ = await identity.async_read_transport("192.0.2.1", self.location)
+        self.assertIsNone(info)
+        self.assertEqual(self.requests, [])
+
+    async def test_refused_description_is_logged(self):
+        async def refuse(reader, writer):
+            await reader.readuntil(b"\r\n\r\n")
+            writer.write(b"HTTP/1.1 404 Not Found\r\n\r\n")
+            await writer.drain()
+            writer.close()
+        server = await asyncio.start_server(refuse, "127.0.0.1", 0)
+        url = f"http://127.0.0.1:{server.sockets[0].getsockname()[1]}/description.xml"
+        try:
+            with self.assertLogs(identity._LOGGER, "DEBUG") as logs:
+                self.assertIsNone(await identity.async_fetch(url))
+        finally:
+            server.close()
+        self.assertTrue(any("404 Not Found" in line for line in logs.output))
+
+    async def test_failed_control_request_forgets_the_cached_url(self):
+        with self.find(None):
+            await identity.async_read_transport("127.0.0.1", self.location)
+            self.assertIn(self.location, identity._CONTROL_URLS)
+            self.server.close()
+            await self.server.wait_closed()
+            info, _ = await identity.async_read_transport("127.0.0.1", self.location)
+        self.assertIsNone(info)
+        self.assertNotIn(self.location, identity._CONTROL_URLS)
 
 
 class ApplyTest(unittest.TestCase):

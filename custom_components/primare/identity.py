@@ -76,6 +76,16 @@ async def async_find_location(
         transport.close()
 
 
+async def _read_all(reader: asyncio.StreamReader) -> bytes:
+    """Up to MAX_DESCRIPTION bytes, until the device closes the connection.
+
+    A single read() can return just the first packet (e.g. only the headers)."""
+    data = b""
+    while len(data) < MAX_DESCRIPTION and (chunk := await reader.read(MAX_DESCRIPTION - len(data))):
+        data += chunk
+    return data
+
+
 async def async_fetch(url: str, *, timeout: float = 5.0) -> str | None:
     """Plain HTTP/1.0 GET, read-only, size-limited."""
     parts = urlsplit(url)
@@ -92,17 +102,21 @@ async def async_fetch(url: str, *, timeout: float = 5.0) -> str | None:
                     f"GET {path} HTTP/1.0\r\nHost: {parts.netloc}\r\nConnection: close\r\n\r\n".encode("ascii")
                 )
                 await writer.drain()
-                data = await reader.read(MAX_DESCRIPTION)
+                data = await _read_all(reader)
             finally:
                 writer.close()
                 with contextlib.suppress(Exception):
                     await writer.wait_closed()
     except (OSError, TimeoutError, UnicodeEncodeError) as err:
-        _LOGGER.debug("UPnP description %s not readable: %s", url, err)
+        _LOGGER.debug("UPnP description %s not readable: %r", url, err)
         return None
     head, _, body = data.partition(b"\r\n\r\n")
-    if not head.startswith(b"HTTP/") or b" 200 " not in head.split(b"\r\n", 1)[0] + b" ":
+    status = head.split(b"\r\n", 1)[0]
+    if not head.startswith(b"HTTP/") or b" 200 " not in status + b" ":
+        _LOGGER.debug("UPnP description %s: %r (%d bytes)", url, status[:80], len(data))
         return None
+    if b"chunked" in head.lower():
+        body = _dechunk(body)
     return body.decode("utf-8", "replace")
 
 
@@ -208,7 +222,7 @@ async def async_soap(url: str, action: str, *, timeout: float = 3.0) -> str | No
             try:
                 writer.write(request)
                 await writer.drain()
-                data = await reader.read(MAX_DESCRIPTION)
+                data = await _read_all(reader)
             finally:
                 writer.close()
                 with contextlib.suppress(Exception):
@@ -240,24 +254,44 @@ def _dechunk(data: bytes) -> bytes:
     return out
 
 
-async def async_read_transport(location: str) -> dict[str, str | None] | None:
-    """{"state": "PLAYING"|…, "title": …} from the device's UPnP renderer, or None."""
-    control = _CONTROL_URLS.get(location)
-    if control is None:
-        text = await async_fetch(location)
+async def _async_control_url(host: str, location: str | None) -> tuple[str, str] | None:
+    """(description location, AVTransport control URL); searches again if the known
+    address no longer answers – the device may get a new UPnP port after a restart."""
+    if location and (control := _CONTROL_URLS.get(location)):
+        return location, control
+    candidates = [location] if location and urlsplit(location).hostname == host else []
+    for attempt in range(2):
+        if attempt or not candidates:
+            if not (found := await async_find_location(host, timeout=5)) or found in candidates:
+                continue
+            candidates.append(found)
+        candidate = candidates[-1]
+        text = await async_fetch(candidate)
         if text is None:
-            _LOGGER.debug("UPnP description %s not readable", location)
-            return None
-        if (control := parse_av_transport_url(text, location)) is None:
-            _LOGGER.debug("No AVTransport control URL in %s", location)
-            return None
+            continue
+        if (control := parse_av_transport_url(text, candidate)) is None:
+            _LOGGER.debug("No AVTransport control URL in %s", candidate)
+            continue
         _LOGGER.debug("UPnP AVTransport control URL %s", control)
-        _CONTROL_URLS[location] = control
+        _CONTROL_URLS[candidate] = control
+        return candidate, control
+    return None
+
+
+async def async_read_transport(
+    host: str, location: str | None = None
+) -> tuple[dict[str, str | None] | None, str | None]:
+    """({"state": "PLAYING"|…, "title": …} or None, current description location)."""
+    found = await _async_control_url(host, location)
+    if found is None:
+        return None, location
+    location, control = found
     info = await async_soap(control, "GetTransportInfo")
     if info is None:
-        return None
+        _CONTROL_URLS.pop(location, None)  # look it up again next time
+        return None, location
     if (state := parse_transport_state(info)) is None:
         _LOGGER.debug("No transport state in UPnP answer %r", info[:200])
-        return None
+        return None, location
     media = await async_soap(control, "GetMediaInfo") if state == "PLAYING" else None
-    return {"state": state, "title": parse_media_title(media) if media else None}
+    return {"state": state, "title": parse_media_title(media) if media else None}, location

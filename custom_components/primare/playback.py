@@ -149,7 +149,6 @@ class StreamerPlayback:
             not self._running
             or data is None
             or data.state != 1
-            or not self._entry.runtime_data.location
             or not self._on_stream_input()
         ):
             self._upnp = None
@@ -166,10 +165,13 @@ class StreamerPlayback:
 
     async def _async_check_upnp(self, _now) -> None:
         self._cancel_upnp = None
-        location = self._entry.runtime_data.location
-        if not self._running or not location:
+        runtime = self._entry.runtime_data
+        if not self._running:
             return
-        result = await async_read_transport(location)
+        result, location = await async_read_transport(self._entry.data[CONF_HOST], runtime.location)
+        if location and location != runtime.location:
+            _LOGGER.debug("%s: UPnP description now at %s", self._entry.title, location)
+            runtime.location = location
         playing = result if result and result.get("state") == "PLAYING" else None
         _LOGGER.debug("%s: LUCI idle, UPnP says %s", self._entry.title, result)
         if playing != self._upnp:
