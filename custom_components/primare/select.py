@@ -27,7 +27,7 @@ async def async_setup_entry(
 
 
 class PrimareInputSelect(PrimareEntity, SelectEntity):
-    _attr_name = "Input"
+    _attr_translation_key = "input"
     _attr_icon = "mdi:audio-input-rca"
 
     def __init__(self, entry: PrimareConfigEntry) -> None:
@@ -48,7 +48,7 @@ class PrimareInputSelect(PrimareEntity, SelectEntity):
 
 
 class PrimareDspSelect(PrimareEntity, SelectEntity):
-    _attr_name = "DSP Mode"
+    _attr_translation_key = "dsp_mode"
     _attr_icon = "mdi:surround-sound"
     _attr_options = list(DSP_MAP.values())
 

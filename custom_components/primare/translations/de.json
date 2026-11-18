@@ -37,11 +37,9 @@
         "data": {
           "device_type": "Gerätetyp",
           "max_volume": "Maximale Lautstärke",
-          "inputs": "Eingänge / Presets",
-          "playback_status": "Wiedergabe des Prisma-Streamers anzeigen"
+          "inputs": "Eingänge / Presets"
         },
         "data_description": {
-          "playback_status": "Legt eine Entität „Wiedergabe“ an: Titel, Interpret, Cover, Position sowie Play/Pause/Weiter. Nutzt das LUCI-Protokoll des eingebauten Streamers (Port 7777). Bestätigt auf dem NP5 Prisma MK2; andere Modelle ungetestet. Beitrag von yvos.",
           "max_volume": "Höher stellt HA nie – egal ob Regler, Sprachbefehl, Automation oder Aktion. 99 = keine Begrenzung. Am Gerät selbst bleibt mehr möglich.",
           "inputs": "Eine Zeile pro Eingang: Nummer = Name (Nummer 1–17). Leer lassen = keine Eingangsauswahl."
         }
@@ -49,6 +47,48 @@
     },
     "error": {
       "invalid_inputs": "Ungültige Zeile. Format: 4 = HDMI ARC (Nummer 1–17, jeder Name nur einmal)."
+    }
+  },
+  "entity": {
+    "button": {
+      "volume_up": {
+        "name": "Lauter"
+      },
+      "volume_down": {
+        "name": "Leiser"
+      }
+    },
+    "number": {
+      "volume": {
+        "name": "Lautstärke"
+      }
+    },
+    "select": {
+      "input": {
+        "name": "Eingang"
+      },
+      "dsp_mode": {
+        "name": "DSP-Modus"
+      }
+    },
+    "sensor": {
+      "volume_status": {
+        "name": "Lautstärke (Status)"
+      },
+      "input_status": {
+        "name": "Eingang (Status)"
+      },
+      "dsp_mode_status": {
+        "name": "DSP-Modus (Status)"
+      }
+    },
+    "switch": {
+      "power": {
+        "name": "Ein/Aus"
+      },
+      "mute": {
+        "name": "Stumm"
+      }
     }
   }
 }

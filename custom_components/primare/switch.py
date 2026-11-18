@@ -22,7 +22,7 @@ async def async_setup_entry(
 
 
 class PrimarePowerSwitch(PrimareEntity, SwitchEntity):
-    _attr_name = "Power"
+    _attr_translation_key = "power"
     _attr_icon = "mdi:power"
 
     def __init__(self, entry: PrimareConfigEntry) -> None:
@@ -40,7 +40,7 @@ class PrimarePowerSwitch(PrimareEntity, SwitchEntity):
 
 
 class PrimareMuteSwitch(PrimareEntity, SwitchEntity):
-    _attr_name = "Mute"
+    _attr_translation_key = "mute"
     _attr_icon = "mdi:volume-off"
 
     def __init__(self, entry: PrimareConfigEntry) -> None:
