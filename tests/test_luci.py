@@ -430,6 +430,21 @@ class LuciTest(unittest.IsolatedAsyncioTestCase):
         await self.writer.drain()
         self.assertEqual((await asyncio.wait_for(updates.get(), 1)).position, 60)
 
+    async def test_live_stream_position_pushes_do_not_publish(self):
+        # Internet radio over UPnP (Pre35, 18.11.2026): no track length, and the device
+        # keeps pushing a position that does not follow the clock – twice a second.
+        updates = asyncio.Queue()
+        self.client.subscribe(updates.put_nowait)
+        self.play_view = {"TrackName": "Radio", "TotalTime": 0}
+        self.position_reply = frame(luci.POSITION, b"-1000")
+        await self.client.async_read()
+        for _ in range(6):
+            self.writer.write(frame(luci.POSITION, b"0", 0))
+            await self.writer.drain()
+            await asyncio.sleep(0.5)
+        await asyncio.sleep(luci.PUSH_SETTLE * 2)
+        self.assertLessEqual(updates.qsize(), 1)
+
     async def test_shutdown_closes_and_prevents_reconnection(self):
         await self.client.async_read()
         await self.client.async_shutdown()

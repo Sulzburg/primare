@@ -493,6 +493,10 @@ class LuciPlaybackClient:
         if snapshot is None:
             return
         if last is not None and replace(snapshot, position=None) == replace(last, position=None):
+            if snapshot.position is not None and snapshot.position == last.position:
+                # A counter that does not move while playing is no news (internet radio
+                # over UPnP pushes one twice a second) – a real seek changes the value.
+                return
             if snapshot.position is not None and last.position is not None:
                 expected = last.position
                 if last.state == 0:
