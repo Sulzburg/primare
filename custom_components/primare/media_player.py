@@ -55,6 +55,7 @@ class PrimareMediaPlayer(PrimareEntity, MediaPlayerEntity):
         self._streamer = streamer
         self._was_streaming: bool | None = None
         self._track = None
+        self._last_playback = None
         p = self._profile
         features = (
             MediaPlayerEntityFeature.TURN_ON
@@ -153,10 +154,16 @@ class PrimareMediaPlayer(PrimareEntity, MediaPlayerEntity):
                 features &= ~MediaPlayerEntityFeature.NEXT_TRACK
             if playback.can_previous is False:
                 features &= ~MediaPlayerEntityFeature.PREVIOUS_TRACK
-            if playback.can_seek is True:
+            # Like Next/Prev: offered unless the device explicitly refuses (the Pre35
+            # reports nothing) – needs a known track length.
+            if playback.can_seek is not False and playback.duration:
                 features |= MediaPlayerEntityFeature.SEEK
         self._attr_supported_features = features
-        self._update_position(playback)
+        # Position only from fresh streamer data: an amplifier change (volume, input …)
+        # must not re-stamp an old position. Found by yvos.
+        if playback is not self._last_playback:
+            self._last_playback = playback
+            self._update_position(playback)
 
     def _update_position(self, playback: Playback | None) -> None:
         track = playback.track if playback else None

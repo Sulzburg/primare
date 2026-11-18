@@ -125,6 +125,17 @@ def _positive(value):
     return number if number is not None and number > 0 else None
 
 
+def _bit_rate(view: dict) -> int | None:
+    """Bits per second. UPnP playback reports bytes per second for PCM/FLAC
+    (176400 at 44.1 kHz / 16 bit / stereo) – recognised by that exact value. Hint by yvos."""
+    rate = _positive(view.get("BitRate"))
+    sample_rate = _positive(view.get("SampleRate"))
+    depth = _positive(view.get("BitDepth"))
+    if rate and sample_rate and depth and rate == sample_rate * depth // 8 * 2:
+        return int(rate * 8)
+    return rate
+
+
 def _playback(payload: bytes, state: int) -> Playback:
     try:
         view = json.loads(payload.rstrip(b"\0"))["Window CONTENTS"]
@@ -151,7 +162,7 @@ def _playback(payload: bytes, state: int) -> Playback:
         sample_rate_hz=_positive(view.get("SampleRate")),
         bit_depth=_positive(view.get("BitDepth")),
         audio_format=_text(view.get("Mime")),
-        bit_rate_bps=_positive(view.get("BitRate")),
+        bit_rate_bps=_bit_rate(view),
         cover_art_url=_cover_url(view.get("CoverArtUrl")),
         source_app=_text(view.get("CastContentApp")),
         can_next=_flag(view.get("Next")),
