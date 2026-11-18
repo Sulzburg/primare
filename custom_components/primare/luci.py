@@ -10,6 +10,7 @@ and aiolibresync (Alessandro Zarrilli, MIT).
 """
 
 import asyncio
+import hashlib
 from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass, replace
@@ -87,10 +88,21 @@ def _text(value):
     return (value.strip() or None) if isinstance(value, str) else None
 
 
-def _cover_url(value):
+PLACEHOLDER_COVERS = ("defaultart.jpg",)
+
+
+def _cover_url(value, host: str | None = None, track: tuple = ()):
     url = _text(value)
     if url is None:
         return None
+    if host and _is_plain_file_name(url):
+        # Roon on the Pre35: only "coverart.jpg", served by the module itself on port 80.
+        # The name stays the same for every track – a per-track query makes it a new
+        # address, so neither Home Assistant's image cache nor the browser keep the old one.
+        if url.lower() in PLACEHOLDER_COVERS:
+            return None
+        tag = hashlib.sha256(repr(track).encode()).hexdigest()[:12]
+        return f"http://{host}/{url}?track={tag}"
     try:
         parts = urlsplit(url)
         if (
@@ -102,6 +114,17 @@ def _cover_url(value):
     except ValueError:
         pass
     return None
+
+
+def _is_plain_file_name(name: str) -> bool:
+    """'coverart.jpg' yes; anything with a scheme, path, query or odd characters no."""
+    stem, dot, ext = name.rpartition(".")
+    return (
+        bool(dot)
+        and ext.lower() in ("jpg", "jpeg", "png")
+        and bool(stem)
+        and all(c.isascii() and (c.isalnum() or c in "_-") for c in stem)
+    )
 
 
 def _number(value):
@@ -137,7 +160,7 @@ def _bit_rate(view: dict) -> int | None:
     return rate
 
 
-def _playback(payload: bytes, state: int) -> Playback:
+def _playback(payload: bytes, state: int, host: str | None = None) -> Playback:
     try:
         view = json.loads(payload.rstrip(b"\0"))["Window CONTENTS"]
     except (ValueError, TypeError, KeyError) as err:
@@ -164,7 +187,11 @@ def _playback(payload: bytes, state: int) -> Playback:
         bit_depth=_positive(view.get("BitDepth")),
         audio_format=_text(view.get("Mime")),
         bit_rate_bps=_bit_rate(view),
-        cover_art_url=_cover_url(view.get("CoverArtUrl")),
+        cover_art_url=_cover_url(
+            view.get("CoverArtUrl"),
+            host,
+            (view.get("TrackName"), view.get("Artist"), view.get("Album")),
+        ),
         source_app=_text(view.get("CastContentApp")),
         can_next=_flag(view.get("Next")),
         can_previous=_flag(view.get("Prev")),
@@ -383,7 +410,7 @@ class LuciPlaybackClient:
             self._apply_state(state)
         elif box in (PLAY_VIEW, PLAY_VIEW_PUSH):
             # PlayView's state can be stale after a Spotify pause. Use 0x33.
-            metadata = _playback(payload, 0)
+            metadata = _playback(payload, 0, self._host)
             if (
                 self._stale_track is not None
                 and metadata.track == self._stale_track
