@@ -1,7 +1,12 @@
 {
   "domain": "primare",
   "name": "Primare",
-  "codeowners": ["@Sulzburg"],
+  "categories": [
+    "media_entertainment.speakers_audio"
+  ],
+  "codeowners": [
+    "@Sulzburg"
+  ],
   "config_flow": true,
   "dependencies": [],
   "documentation": "https://github.com/Sulzburg/primare/blob/main/README.md",
