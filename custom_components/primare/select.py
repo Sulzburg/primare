@@ -43,7 +43,7 @@ class PrimareInputSelect(PrimareEntity, SelectEntity):
     async def async_select_option(self, option: str) -> None:
         number = self._profile.inputs_inv.get(option)
         if number is None:
-            raise ServiceValidationError(f"Unbekannter Eingang: {option}")
+            raise ServiceValidationError(f"Unknown input: {option}")
         await self._send(self._client.set_input(number))
 
 
@@ -64,5 +64,5 @@ class PrimareDspSelect(PrimareEntity, SelectEntity):
     async def async_select_option(self, option: str) -> None:
         number = DSP_MAP_INV.get(option)
         if number is None:
-            raise ServiceValidationError(f"Unbekannter DSP-Modus: {option}")
+            raise ServiceValidationError(f"Unknown DSP mode: {option}")
         await self._send(self._client.set_dsp(number))

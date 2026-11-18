@@ -27,6 +27,16 @@ class TranslationTest(unittest.TestCase):
                 self.assertIn(key, entity.get(platform, {}), f"{lang}: {platform}.{key}")
                 self.assertTrue(entity[platform][key]["name"])
 
+    def test_device_types_in_both_languages(self):
+        const = (_DIR / "const.py").read_text(encoding="utf-8")
+        types = re.findall(r'^TYPE_[A-Z]+ = "([^"]+)"', const, re.MULTILINE)
+        self.assertEqual(len(types), 3)
+        for lang in ("de", "en"):
+            selector = json.loads((_DIR / f"translations/{lang}.json").read_text(encoding="utf-8"))["selector"]
+            options = selector["device_type"]["options"]
+            self.assertEqual(set(options), {t.lower() for t in types}, lang)
+            self.assertTrue(all(options.values()), lang)
+
     def test_no_hard_coded_names(self):
         for path in _DIR.glob("*.py"):
             for match in re.finditer(r'_attr_name = (.+)', path.read_text(encoding="utf-8")):

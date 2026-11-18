@@ -17,7 +17,6 @@ from homeassistant.helpers.selector import (
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
-    SelectOptionDict,
     SelectSelector,
     SelectSelectorConfig,
     SelectSelectorMode,
@@ -34,21 +33,20 @@ from .const import (
     CONF_NAME,
     CONF_PORT,
     DEFAULT_INPUTS,
+    DEVICE_TYPES,
     DOMAIN,
     TYPE_MULTICHANNEL,
-    TYPE_STEREO,
-    TYPE_STREAMER,
     format_inputs,
     parse_inputs,
 )
 
+# Labels come from the translations ("selector.device_type"), which only allow
+# lowercase keys; the stored device types keep their spelling.
+TYPE_OPTIONS = {device_type.lower(): device_type for device_type in DEVICE_TYPES}
 TYPE_SELECTOR = SelectSelector(
     SelectSelectorConfig(
-        options=[
-            SelectOptionDict(value=TYPE_MULTICHANNEL, label="SP25 / SPA25 (Presets + DSP)"),
-            SelectOptionDict(value=TYPE_STEREO, label="Vor-/Vollverstärker (Eingänge)"),
-            SelectOptionDict(value=TYPE_STREAMER, label="Netzwerkplayer (nur Power + Lautstärke)"),
-        ],
+        options=list(TYPE_OPTIONS),
+        translation_key=CONF_DEVICE_TYPE,
         mode=SelectSelectorMode.LIST,
     )
 )
@@ -80,7 +78,8 @@ class PrimareConfigFlow(ConfigFlow, domain=DOMAIN):
             user_input[CONF_PORT] = int(user_input[CONF_PORT])
             self._async_abort_entries_match({CONF_HOST: user_input[CONF_HOST]})
             if not (error := await _test(user_input[CONF_HOST], user_input[CONF_PORT])):
-                return self.async_create_entry(title=user_input[CONF_NAME], data=user_input)
+                data = {**user_input, CONF_DEVICE_TYPE: TYPE_OPTIONS[user_input[CONF_DEVICE_TYPE]]}
+                return self.async_create_entry(title=user_input[CONF_NAME], data=data)
             errors["base"] = error
 
         schema = vol.Schema(
@@ -88,7 +87,7 @@ class PrimareConfigFlow(ConfigFlow, domain=DOMAIN):
                 vol.Required(CONF_HOST): str,
                 vol.Required(CONF_PORT, default=DEFAULT_PORT): PORT_SELECTOR,
                 vol.Required(CONF_NAME): str,
-                vol.Required(CONF_DEVICE_TYPE, default=TYPE_MULTICHANNEL): TYPE_SELECTOR,
+                vol.Required(CONF_DEVICE_TYPE, default=TYPE_MULTICHANNEL.lower()): TYPE_SELECTOR,
             }
         )
         return self.async_show_form(
@@ -132,7 +131,7 @@ class PrimareOptionsFlow(OptionsFlow):
         errors: dict[str, str] = {}
 
         if user_input is not None:
-            new_type = user_input[CONF_DEVICE_TYPE]
+            new_type = TYPE_OPTIONS[user_input[CONF_DEVICE_TYPE]]
             text = user_input.get(CONF_INPUTS, "")
             if new_type != current_type and text.strip() == format_inputs(
                 DEFAULT_INPUTS.get(current_type, {})
@@ -159,7 +158,7 @@ class PrimareOptionsFlow(OptionsFlow):
 
         schema = vol.Schema(
             {
-                vol.Required(CONF_DEVICE_TYPE, default=current_type): TYPE_SELECTOR,
+                vol.Required(CONF_DEVICE_TYPE, default=current_type.lower()): TYPE_SELECTOR,
                 vol.Required(
                     CONF_MAX_VOLUME,
                     default=int(entry.options.get(CONF_MAX_VOLUME, VOLUME_MAX)),

@@ -59,25 +59,25 @@ def _resolve(hass: HomeAssistant, call: ServiceCall) -> PrimareClient:
         if e.state is ConfigEntryState.LOADED
     ]
     if not entries:
-        raise ServiceValidationError("Kein Primare-Gerät geladen.")
+        raise ServiceValidationError("No Primare device loaded.")
 
     data = call.data
     if device_id := data.get("device_id"):
         if isinstance(device_id, list):
             if len(device_id) != 1:
-                raise ServiceValidationError("Bitte genau ein Gerät wählen.")
+                raise ServiceValidationError("Please select exactly one device.")
             device_id = device_id[0]
         device = dr.async_get(hass).async_get(device_id)
         for entry in entries:
             if device and entry.entry_id in device.config_entries:
                 return entry.runtime_data.client
-        raise ServiceValidationError(f"Gerät nicht gefunden: {device_id}")
+        raise ServiceValidationError(f"Device not found: {device_id}")
 
     if entry_id := data.get("entry_id"):
         for entry in entries:
             if entry.entry_id == entry_id:
                 return entry.runtime_data.client
-        raise ServiceValidationError(f"entry_id nicht gefunden: {entry_id}")
+        raise ServiceValidationError(f"entry_id not found: {entry_id}")
 
     if name := data.get("device_name"):
         wanted = name.casefold()
@@ -88,11 +88,11 @@ def _resolve(hass: HomeAssistant, call: ServiceCall) -> PrimareClient:
         if len(matches) == 1:
             return matches[0].runtime_data.client
         known = ", ".join(e.title for e in entries)
-        raise ServiceValidationError(f"device_name nicht eindeutig/gefunden: {name} (bekannt: {known})")
+        raise ServiceValidationError(f"device_name not found or ambiguous: {name} (known: {known})")
 
     if len(entries) == 1:
         return entries[0].runtime_data.client
-    raise ServiceValidationError("Mehrere Primare-Geräte – bitte ein Gerät angeben.")
+    raise ServiceValidationError("Several Primare devices – please specify one.")
 
 
 async def _run(coro) -> None:
@@ -119,7 +119,7 @@ def async_setup_services(hass: HomeAssistant) -> None:
             await _run(client.step_volume(delta, call.data["step_delay_ms"] / 1000))
             return
         if client.volume is None:
-            raise HomeAssistantError("Aktuelle Lautstärke unbekannt.")
+            raise HomeAssistantError("Current volume unknown.")
         await _run(client.set_volume(client.volume + delta))
 
     async def volume_fade(call: ServiceCall) -> None:
