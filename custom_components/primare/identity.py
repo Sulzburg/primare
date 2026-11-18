@@ -17,7 +17,7 @@ import html
 import logging
 import re
 import socket
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import urlsplit
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -76,16 +76,6 @@ async def async_find_location(
         transport.close()
 
 
-async def _read_all(reader: asyncio.StreamReader) -> bytes:
-    """Up to MAX_DESCRIPTION bytes, until the device closes the connection.
-
-    A single read() can return just the first packet (e.g. only the headers)."""
-    data = b""
-    while len(data) < MAX_DESCRIPTION and (chunk := await reader.read(MAX_DESCRIPTION - len(data))):
-        data += chunk
-    return data
-
-
 async def async_fetch(url: str, *, timeout: float = 5.0) -> str | None:
     """Plain HTTP/1.0 GET, read-only, size-limited."""
     parts = urlsplit(url)
@@ -102,21 +92,17 @@ async def async_fetch(url: str, *, timeout: float = 5.0) -> str | None:
                     f"GET {path} HTTP/1.0\r\nHost: {parts.netloc}\r\nConnection: close\r\n\r\n".encode("ascii")
                 )
                 await writer.drain()
-                data = await _read_all(reader)
+                data = await reader.read(MAX_DESCRIPTION)
             finally:
                 writer.close()
                 with contextlib.suppress(Exception):
                     await writer.wait_closed()
     except (OSError, TimeoutError, UnicodeEncodeError) as err:
-        _LOGGER.debug("UPnP description %s not readable: %r", url, err)
+        _LOGGER.debug("UPnP description %s not readable: %s", url, err)
         return None
     head, _, body = data.partition(b"\r\n\r\n")
-    status = head.split(b"\r\n", 1)[0]
-    if not head.startswith(b"HTTP/") or b" 200 " not in status + b" ":
-        _LOGGER.debug("UPnP description %s: %r (%d bytes)", url, status[:80], len(data))
+    if not head.startswith(b"HTTP/") or b" 200 " not in head.split(b"\r\n", 1)[0] + b" ":
         return None
-    if b"chunked" in head.lower():
-        body = _dechunk(body)
     return body.decode("utf-8", "replace")
 
 
@@ -155,143 +141,3 @@ async def async_read_identity(host: str, location: str | None = None) -> dict[st
                 return {**info, "location": found}
     _LOGGER.debug("%s: no UPnP identity", host)
     return {}
-
-
-# --------------------------------------------------------------------------------------
-# Playback state from the device's own UPnP renderer (read-only).
-#
-# Over LUCI the Pre35 can report "idle" while it plays a stream that was replaced via
-# UPnP (18.11.2026: Radio BOB station switched by an automation). Its UPnP renderer
-# still knows – ask it, only in that case. Two read-only actions, no commands:
-# GetTransportInfo (state) and GetMediaInfo (title of what is loaded).
-
-AV_TRANSPORT = "urn:schemas-upnp-org:service:AVTransport:1"
-_CONTROL_URLS: dict[str, str] = {}
-
-
-def parse_av_transport_url(text: str, location: str) -> str | None:
-    """Control URL of the AVTransport service, only on the device's own host."""
-    for block in re.findall(r"<service>(.*?)</service>", text, re.S):
-        if _field(block, "serviceType") == AV_TRANSPORT and (path := _field(block, "controlURL")):
-            url = urljoin(location, path)
-            if urlsplit(url).hostname == urlsplit(location).hostname:
-                return url
-    return None
-
-
-def parse_transport_state(text: str) -> str | None:
-    return _field(text, "CurrentTransportState")
-
-
-def parse_media_title(text: str) -> str | None:
-    """dc:title from GetMediaInfo's CurrentURIMetaData (DIDL-Lite, escaped inside SOAP)."""
-    match = re.search(r"<CurrentURIMetaData>(.*?)</CurrentURIMetaData>", text, re.S)
-    if not match:
-        return None
-    didl = html.unescape(match.group(1))
-    title = re.search(r"<dc:title>\s*([^<]{1,200}?)\s*</dc:title>", didl)
-    if not title:
-        return None
-    return html.unescape(title.group(1)).strip() or None
-
-
-async def async_soap(url: str, action: str, *, timeout: float = 3.0) -> str | None:
-    """One read-only AVTransport action (InstanceID 0); plain HTTP/1.0, size-limited."""
-    parts = urlsplit(url)
-    if parts.scheme != "http" or not parts.hostname:
-        return None
-    body = (
-        '<?xml version="1.0" encoding="utf-8"?>'
-        '<s:Envelope xmlns:s="http://schemas.xmlsoap.org/soap/envelope/" '
-        's:encodingStyle="http://schemas.xmlsoap.org/soap/encoding/"><s:Body>'
-        f'<u:{action} xmlns:u="{AV_TRANSPORT}"><InstanceID>0</InstanceID></u:{action}>'
-        "</s:Body></s:Envelope>"
-    ).encode()
-    path = parts.path or "/"
-    if parts.query:
-        path += "?" + parts.query
-    request = (
-        f"POST {path} HTTP/1.1\r\nHost: {parts.netloc}\r\n"
-        'Content-Type: text/xml; charset="utf-8"\r\n'
-        f'SOAPACTION: "{AV_TRANSPORT}#{action}"\r\n'
-        f"Content-Length: {len(body)}\r\nConnection: close\r\n\r\n"
-    ).encode("ascii") + body
-    try:
-        async with asyncio.timeout(timeout):
-            reader, writer = await asyncio.open_connection(parts.hostname, parts.port or 80)
-            try:
-                writer.write(request)
-                await writer.drain()
-                data = await _read_all(reader)
-            finally:
-                writer.close()
-                with contextlib.suppress(Exception):
-                    await writer.wait_closed()
-    except (OSError, TimeoutError, UnicodeEncodeError) as err:
-        _LOGGER.debug("UPnP %s at %s failed: %s", action, url, err)
-        return None
-    head, _, response = data.partition(b"\r\n\r\n")
-    status = head.split(b"\r\n", 1)[0]
-    if not head.startswith(b"HTTP/") or b" 200 " not in status + b" ":
-        _LOGGER.debug("UPnP %s at %s: %r %r", action, url, status[:80], response[:200])
-        return None
-    if b"chunked" in head.lower():
-        response = _dechunk(response)
-    return response.decode("utf-8", "replace")
-
-
-def _dechunk(data: bytes) -> bytes:
-    out, rest = b"", data
-    while rest:
-        size_line, _, rest = rest.partition(b"\r\n")
-        try:
-            size = int(size_line.split(b";")[0].strip() or b"0", 16)
-        except ValueError:
-            return out + rest
-        if size == 0:
-            break
-        out, rest = out + rest[:size], rest[size + 2 :]
-    return out
-
-
-async def _async_control_url(host: str, location: str | None) -> tuple[str, str] | None:
-    """(description location, AVTransport control URL); searches again if the known
-    address no longer answers – the device may get a new UPnP port after a restart."""
-    if location and (control := _CONTROL_URLS.get(location)):
-        return location, control
-    candidates = [location] if location and urlsplit(location).hostname == host else []
-    for attempt in range(2):
-        if attempt or not candidates:
-            if not (found := await async_find_location(host, timeout=5)) or found in candidates:
-                continue
-            candidates.append(found)
-        candidate = candidates[-1]
-        text = await async_fetch(candidate)
-        if text is None:
-            continue
-        if (control := parse_av_transport_url(text, candidate)) is None:
-            _LOGGER.debug("No AVTransport control URL in %s", candidate)
-            continue
-        _LOGGER.debug("UPnP AVTransport control URL %s", control)
-        _CONTROL_URLS[candidate] = control
-        return candidate, control
-    return None
-
-
-async def async_read_transport(
-    host: str, location: str | None = None
-) -> tuple[dict[str, str | None] | None, str | None]:
-    """({"state": "PLAYING"|…, "title": …} or None, current description location)."""
-    found = await _async_control_url(host, location)
-    if found is None:
-        return None, location
-    location, control = found
-    info = await async_soap(control, "GetTransportInfo")
-    if info is None:
-        _CONTROL_URLS.pop(location, None)  # look it up again next time
-        return None, location
-    if (state := parse_transport_state(info)) is None:
-        _LOGGER.debug("No transport state in UPnP answer %r", info[:200])
-        return None, location
-    media = await async_soap(control, "GetMediaInfo") if state == "PLAYING" else None
-    return {"state": state, "title": parse_media_title(media) if media else None}, location

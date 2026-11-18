@@ -52,7 +52,6 @@ class PrimareRuntime:
     client: PrimareClient
     profile: DeviceProfile
     model: str | None = None  # as the device reported it (UPnP), remembered
-    location: str | None = None  # address of the device's UPnP description
 
 
 type PrimareConfigEntry = ConfigEntry[PrimareRuntime]
@@ -91,9 +90,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: PrimareConfigEntry) -> b
     await client.start(wait=3)
     store = _identity_store(hass, entry)
     known = await store.async_load() or {}
-    entry.runtime_data = PrimareRuntime(
-        client, profile, model=known.get("model"), location=known.get("location")
-    )
+    entry.runtime_data = PrimareRuntime(client, profile, model=known.get("model"))
     entry.async_on_unload(entry.add_update_listener(_async_reload))
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
@@ -118,8 +115,6 @@ async def _async_update_identity(
     manufacturer = info.get("manufacturer", "")
     if manufacturer and "primare" not in manufacturer.lower():
         return
-    if info.get("location"):
-        entry.runtime_data.location = info["location"]
     if info.get("model") and (
         info["model"] != known.get("model") or info.get("location") != known.get("location")
     ):
