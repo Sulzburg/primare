@@ -115,7 +115,7 @@ class PrimareClient:
             try:
                 callback()
             except Exception:  # noqa: BLE001 – ein defekter Listener darf den Client nicht stoppen
-                _LOGGER.exception("%s: Fehler in Listener", self.name)
+                _LOGGER.exception("%s: Error in listener", self.name)
 
     # ---------------------------------------------------------------- Lebenszyklus
     async def start(self, wait: float = 0.0) -> None:
@@ -161,7 +161,7 @@ class PrimareClient:
                 delay = RECONNECT_DELAYS[min(attempt, len(RECONNECT_DELAYS) - 1)]
                 log = _LOGGER.warning if attempt == 0 else _LOGGER.debug
                 log(
-                    "%s: Keine Verbindung zu %s:%s (%s) – neuer Versuch in %s s",
+                    "%s: No connection to %s:%s (%s) – retrying in %s s",
                     self.name, self.host, self.port, err or type(err).__name__, delay,
                 )
                 attempt += 1
@@ -169,7 +169,7 @@ class PrimareClient:
                 continue
 
             if attempt:
-                _LOGGER.info("%s: Verbindung wiederhergestellt", self.name)
+                _LOGGER.info("%s: Connection restored", self.name)
             attempt = 0
             self._buf = ""
             self._set_connected(True)
@@ -184,9 +184,9 @@ class PrimareClient:
                 PrimareNotConnected,  # Schreiben auf eine gerade geschlossene Verbindung
             ) as err:
                 if not self._stopping:
-                    _LOGGER.warning("%s: Verbindung verloren (%s)", self.name, err)
+                    _LOGGER.warning("%s: Connection lost (%s)", self.name, err)
             except Exception:  # noqa: BLE001 – die Schleife darf nie aufgeben
-                _LOGGER.exception("%s: Unerwarteter Fehler – verbinde neu", self.name)
+                _LOGGER.exception("%s: Unexpected error – reconnecting", self.name)
             finally:
                 await self._close()
                 self._set_connected(False)
@@ -203,12 +203,12 @@ class PrimareClient:
                 )
             except TimeoutError:
                 if probe_pending:
-                    raise ConnectionError("keine Antwort auf Keepalive") from None
+                    raise ConnectionError("no answer to keepalive") from None
                 probe_pending = True
                 await self._write("!1pow.?")
                 continue
             if not data:
-                raise ConnectionError("Gegenstelle hat die Verbindung geschlossen")
+                raise ConnectionError("device closed the connection")
             probe_pending = False
             self._feed(data.decode("ascii", errors="replace"))
 
@@ -237,11 +237,11 @@ class PrimareClient:
             self._notify()
 
     def _apply(self, key: str, raw: str) -> bool:
-        _LOGGER.debug("%s: empfangen !1%s.%s", self.name, key, raw)
+        _LOGGER.debug("%s: received !1%s.%s", self.name, key, raw)
         try:
             value = int(raw)
         except ValueError:
-            _LOGGER.debug("%s: nicht auswertbar: !1%s.%s", self.name, key, raw)
+            _LOGGER.debug("%s: cannot parse !1%s.%s", self.name, key, raw)
             return False
 
         if key == "pow":
@@ -282,8 +282,8 @@ class PrimareClient:
         async with self._send_lock:
             writer = self._writer
             if writer is None or writer.is_closing():
-                raise PrimareNotConnected(f"{self.name}: keine Verbindung")
-            _LOGGER.debug("%s: sende %s", self.name, command)
+                raise PrimareNotConnected(f"{self.name}: not connected")
+            _LOGGER.debug("%s: sending %s", self.name, command)
             writer.write(f"{command}\r\n".encode("ascii"))
             await writer.drain()
 
@@ -292,7 +292,7 @@ class PrimareClient:
             await self._write(command)
         except (OSError, ConnectionError) as err:
             # Leseschleife merkt den Abbruch und verbindet neu
-            raise PrimareNotConnected(f"{self.name}: Senden fehlgeschlagen ({err})") from err
+            raise PrimareNotConnected(f"{self.name}: sending failed ({err})") from err
 
     # ------------------------------------------------------------ Komfortbefehle
     async def set_power(self, on: bool) -> None:
@@ -318,7 +318,7 @@ class PrimareClient:
     async def volume_up(self) -> None:
         self.cancel_fade()
         if self.volume is not None and self.volume >= self.max_volume:
-            _LOGGER.debug("%s: lauter ignoriert – Obergrenze %s erreicht", self.name, self.max_volume)
+            _LOGGER.debug("%s: volume up ignored – limit %s reached", self.name, self.max_volume)
             return
         await self.send("!1vol.u")
 
@@ -336,7 +336,7 @@ class PrimareClient:
             if self.volume is not None:
                 delta = min(delta, self.max_volume - self.volume)
             if delta <= 0:
-                _LOGGER.debug("%s: lauter ignoriert – Obergrenze %s erreicht", self.name, self.max_volume)
+                _LOGGER.debug("%s: volume up ignored – limit %s reached", self.name, self.max_volume)
                 return
         cmd = "!1vol.u" if delta > 0 else "!1vol.d"
         for i in range(abs(delta)):
@@ -378,7 +378,7 @@ class PrimareClient:
     ) -> None:
         start = self.volume
         if start is None:
-            _LOGGER.debug("%s: Überblenden abgebrochen – Lautstärke unbekannt", self.name)
+            _LOGGER.debug("%s: fade cancelled – volume unknown", self.name)
             return
         if start == target:
             return

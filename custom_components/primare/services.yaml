@@ -3,22 +3,22 @@ volume_up:
   description: Increase volume by a number of steps using !1vol.u.
   fields:
     device_id:
-      name: Gerät
-      description: Primare-Gerät (empfohlen).
+      name: Device
+      description: Primare device (recommended).
       required: false
       selector:
         device:
           integration: primare
     entry_id:
       name: Entry ID
-      description: 'Alternativ: entry_id des Geräts (alte Variante).'
+      description: 'Alternative: entry_id of the device (old way).'
       required: false
       example: 8e2c1a1b1c23456789abcdef01234567
       selector:
         text: null
     device_name:
       name: Device name
-      description: 'Alternativ: Name des Geräts (alte Variante).'
+      description: 'Alternative: name of the device (old way).'
       required: false
       example: SP25
       selector:
@@ -39,24 +39,24 @@ volume_down:
   description: Decrease volume by a number of steps using !1vol.d.
   fields:
     device_id:
-      name: Gerät
-      description: Primare-Gerät (empfohlen).
+      name: Device
+      description: Primare device (recommended).
       required: false
       selector:
         device:
           integration: primare
     entry_id:
       name: Entry ID
-      description: 'Alternativ: entry_id des Geräts (alte Variante).'
+      description: 'Alternative: entry_id of the device (old way).'
       required: false
       example: 8e2c1a1b1c23456789abcdef01234567
       selector:
         text: null
     device_name:
       name: Device name
-      description: 'Alternativ: Name des Geräts (alte Variante).'
+      description: 'Alternative: name of the device (old way).'
       required: false
-      example: Pre35 Wohnzimmer
+      example: Pre35 Living Room
       selector:
         text: null
     times:
@@ -75,22 +75,22 @@ volume_relative:
   description: Change volume by a positive/negative delta (steps or absolute).
   fields:
     device_id:
-      name: Gerät
-      description: Primare-Gerät (empfohlen).
+      name: Device
+      description: Primare device (recommended).
       required: false
       selector:
         device:
           integration: primare
     entry_id:
       name: Entry ID
-      description: 'Alternativ: entry_id des Geräts (alte Variante).'
+      description: 'Alternative: entry_id of the device (old way).'
       required: false
       example: 8e2c1a1b1c23456789abcdef01234567
       selector:
         text: null
     device_name:
       name: Device name
-      description: 'Alternativ: Name des Geräts (alte Variante).'
+      description: 'Alternative: name of the device (old way).'
       required: false
       example: SP25
       selector:
@@ -130,33 +130,33 @@ volume_relative:
           unit_of_measurement: ms
 volume_fade:
   name: Volume Fade
-  description: Von der aktuellen auf die Ziel-Lautstärke überblenden. Eine laufende
-    Überblendung desselben Geräts wird abgebrochen.
+  description: Fade from the current to the target volume. A running fade on the
+    same device is cancelled.
   fields:
     device_id:
-      name: Gerät
-      description: Primare-Gerät (empfohlen).
+      name: Device
+      description: Primare device (recommended).
       required: false
       selector:
         device:
           integration: primare
     entry_id:
       name: Entry ID
-      description: 'Alternativ: entry_id des Geräts (alte Variante).'
+      description: 'Alternative: entry_id of the device (old way).'
       required: false
       example: 8e2c1a1b1c23456789abcdef01234567
       selector:
         text: null
     device_name:
       name: Device name
-      description: 'Alternativ: Name des Geräts (alte Variante).'
+      description: 'Alternative: name of the device (old way).'
       required: false
       example: SP25
       selector:
         text: null
     target:
       name: Target volume
-      description: Ziel-Lautstärke (0–99). Standard 0 (ausblenden).
+      description: Target volume (0–99). Default 0 (fade out).
       required: false
       default: 0
       selector:

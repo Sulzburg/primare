@@ -49,6 +49,15 @@
       "invalid_inputs": "Invalid line. Format: 4 = HDMI ARC (number 1–17, each name only once)."
     }
   },
+  "selector": {
+    "device_type": {
+      "options": {
+        "multichannel": "SP25 / SPA25 (Presets + DSP)",
+        "stereo": "Pre/integrated amplifier (inputs)",
+        "streamer": "Network player (power + volume only)"
+      }
+    }
+  },
   "entity": {
     "button": {
       "volume_up": {
