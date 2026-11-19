@@ -10,6 +10,7 @@ and aiolibresync (Alessandro Zarrilli, MIT).
 """
 
 import asyncio
+import hashlib
 from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass, replace
@@ -48,6 +49,7 @@ POSITION_TOLERANCE = 1.5
 POSITION_MAX_AGE = 3.0
 POSITION_SLACK = 2.0
 TRACK_GAP = 2.0
+STALE_AFTER_SOURCE = 5.0  # s: the device may resend the previous app's title
 STATE_KEEP_SECONDS = 10
 _BUFFERING_STATES = (3, 4, 5)
 _LOGGER = logging.getLogger(__name__)
@@ -86,10 +88,21 @@ def _text(value):
     return (value.strip() or None) if isinstance(value, str) else None
 
 
-def _cover_url(value):
+PLACEHOLDER_COVERS = ("defaultart.jpg",)
+
+
+def _cover_url(value, host: str | None = None, track: tuple = ()):
     url = _text(value)
     if url is None:
         return None
+    if host and _is_plain_file_name(url):
+        # Roon on the Pre35: only "coverart.jpg", served by the module itself on port 80.
+        # The name stays the same for every track – a per-track query makes it a new
+        # address, so neither Home Assistant's image cache nor the browser keep the old one.
+        if url.lower() in PLACEHOLDER_COVERS:
+            return None
+        tag = hashlib.sha256(repr(track).encode()).hexdigest()[:12]
+        return f"http://{host}/{url}?track={tag}"
     try:
         parts = urlsplit(url)
         if (
@@ -101,6 +114,17 @@ def _cover_url(value):
     except ValueError:
         pass
     return None
+
+
+def _is_plain_file_name(name: str) -> bool:
+    """'coverart.jpg' yes; anything with a scheme, path, query or odd characters no."""
+    stem, dot, ext = name.rpartition(".")
+    return (
+        bool(dot)
+        and ext.lower() in ("jpg", "jpeg", "png")
+        and bool(stem)
+        and all(c.isascii() and (c.isalnum() or c in "_-") for c in stem)
+    )
 
 
 def _number(value):
@@ -125,7 +149,18 @@ def _positive(value):
     return number if number is not None and number > 0 else None
 
 
-def _playback(payload: bytes, state: int) -> Playback:
+def _bit_rate(view: dict) -> int | None:
+    """Bits per second. UPnP playback reports bytes per second for PCM/FLAC
+    (176400 at 44.1 kHz / 16 bit / stereo) – recognised by that exact value. Hint by yvos."""
+    rate = _positive(view.get("BitRate"))
+    sample_rate = _positive(view.get("SampleRate"))
+    depth = _positive(view.get("BitDepth"))
+    if rate and sample_rate and depth and rate == sample_rate * depth // 8 * 2:
+        return int(rate * 8)
+    return rate
+
+
+def _playback(payload: bytes, state: int, host: str | None = None) -> Playback:
     try:
         view = json.loads(payload.rstrip(b"\0"))["Window CONTENTS"]
     except (ValueError, TypeError, KeyError) as err:
@@ -151,8 +186,12 @@ def _playback(payload: bytes, state: int) -> Playback:
         sample_rate_hz=_positive(view.get("SampleRate")),
         bit_depth=_positive(view.get("BitDepth")),
         audio_format=_text(view.get("Mime")),
-        bit_rate_bps=_positive(view.get("BitRate")),
-        cover_art_url=_cover_url(view.get("CoverArtUrl")),
+        bit_rate_bps=_bit_rate(view),
+        cover_art_url=_cover_url(
+            view.get("CoverArtUrl"),
+            host,
+            (view.get("TrackName"), view.get("Artist"), view.get("Album")),
+        ),
         source_app=_text(view.get("CastContentApp")),
         can_next=_flag(view.get("Next")),
         can_previous=_flag(view.get("Prev")),
@@ -194,6 +233,8 @@ class LuciPlaybackClient:
         self._transition_handle: asyncio.TimerHandle | None = None
         self._pending_state: int | None = None
         self._source_id: int | None = None
+        self._stale_track: tuple | None = None
+        self._stale_until = 0.0
         self._syncing = False
         self._stopping = False
 
@@ -366,7 +407,15 @@ class LuciPlaybackClient:
             self._apply_state(state)
         elif box in (PLAY_VIEW, PLAY_VIEW_PUSH):
             # PlayView's state can be stale after a Spotify pause. Use 0x33.
-            metadata = _playback(payload, 0)
+            metadata = _playback(payload, 0, self._host)
+            if (
+                self._stale_track is not None
+                and metadata.track == self._stale_track
+                and asyncio.get_running_loop().time() < self._stale_until
+            ):
+                # Pre35, 18.11.2026: right after Roon -> UPnP it sent Roon's title once more.
+                _LOGGER.debug("Ignoring previous source's title after a source change")
+                return
             track_changed = self._metadata is not None and metadata.track != self._metadata.track
             if track_changed or (
                 pushed and (self._pending_state is not None or self._state in (1, *_BUFFERING_STATES))
@@ -381,11 +430,19 @@ class LuciPlaybackClient:
                 # keeps pushing its own counter – ignore it instead of jumping.
                 _LOGGER.debug("Ignoring LUCI position %.0f s beyond track length %.0f s", position, duration)
                 return
+            _LOGGER.debug("LUCI position %s (push=%s)", position, pushed)
             self._device_position = position, asyncio.get_running_loop().time()
         elif box in (SOURCE, SOURCE_ALT):
             source = _number(_ascii(payload))
             if source is None or source == self._source_id:
                 return
+            if self._source_id is not None:
+                # Another app took over (e.g. Roon -> UPnP): the new title follows about
+                # 2 s later – rather no title than the old one under the new source.
+                if self._metadata is not None:
+                    self._stale_track = self._metadata.track
+                    self._stale_until = asyncio.get_running_loop().time() + STALE_AFTER_SOURCE
+                self._metadata = self._device_position = None
             self._source_id = source
         elif box == SPEAKER:
             # Do not let an inactive event override a confirmed pause or play.
@@ -482,6 +539,15 @@ class LuciPlaybackClient:
         if snapshot is None:
             return
         if last is not None and replace(snapshot, position=None) == replace(last, position=None):
+            if not snapshot.duration:
+                # No track length (internet radio, live stream): the device's position
+                # counter does not follow the clock and is pushed twice a second –
+                # a position-only change is no news there.
+                return
+            if snapshot.position is not None and snapshot.position == last.position:
+                # A counter that does not move while playing is no news (internet radio
+                # over UPnP pushes one twice a second) – a real seek changes the value.
+                return
             if snapshot.position is not None and last.position is not None:
                 expected = last.position
                 if last.state == 0:

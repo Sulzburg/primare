@@ -1,7 +1,9 @@
 """The combined media player (3.0): amplifier and streamer in one entity."""
 
 import asyncio
+from datetime import UTC, datetime, timedelta
 import unittest
+from unittest import mock
 
 from ha_stub import install
 
@@ -14,6 +16,7 @@ from custom_components.primare.const import (  # noqa: E402
     TYPE_STREAMER,
     DeviceProfile,
 )
+from custom_components.primare import media_player as mp  # noqa: E402
 from custom_components.primare.luci import Playback  # noqa: E402
 from custom_components.primare.media_player import PrimareMediaPlayer  # noqa: E402
 from custom_components.primare.playback import format_firmware  # noqa: E402
@@ -150,7 +153,7 @@ class FeatureTest(unittest.TestCase):
         self.assertFalse(p._attr_supported_features & F.SELECT_SOURCE)
 
     def test_device_refusing_next_and_allowing_seek(self):
-        p, _, _ = player(playback=Playback(state=0, title="X", can_next=False, can_seek=True))
+        p, _, _ = player(playback=Playback(state=0, title="X", duration=200, can_next=False, can_seek=True))
         self.assertFalse(p._attr_supported_features & F.NEXT_TRACK)
         self.assertTrue(p._attr_supported_features & F.PREVIOUS_TRACK)
         self.assertTrue(p._attr_supported_features & F.SEEK)
@@ -189,6 +192,50 @@ class CommandTest(unittest.TestCase):
         p, _, s = player(playback=Playback(state=2, title="X"))
         asyncio.run(p.async_media_play())
         self.assertEqual(s.commands, ["RESUME"])
+
+
+class PositionTest(unittest.TestCase):
+    """An amplifier change must not throw the shown position back (found by yvos)."""
+
+    def test_volume_change_keeps_position(self):
+        t0 = datetime(2026, 11, 18, 10, 0, tzinfo=UTC)
+        now = [t0]
+        with mock.patch.object(mp.dt_util, "utcnow", lambda: now[0], create=True):
+            p, c, _ = player(input=13, playback=PLAYING)
+
+            def shown():
+                return p._attr_media_position + (now[0] - p._attr_media_position_updated_at).total_seconds()
+
+            now[0] = t0 + timedelta(seconds=40)
+            for change in ("volume", "mute", "dsp"):
+                setattr(c, change, 30 if change == "volume" else True)
+                p._handle_update()
+                self.assertEqual(shown(), 150, change)
+
+    def test_new_streamer_data_updates_position(self):
+        p, _, s = player(input=13, playback=PLAYING)
+        s.playback = Playback(state=0, title="China Blue", duration=218, position=170)
+        p._handle_streamer_update()
+        self.assertEqual(p._attr_media_position, 170)
+
+
+class SeekTest(unittest.TestCase):
+    def test_seek_offered_when_device_says_nothing(self):
+        p, _, _ = player(playback=Playback(state=0, title="X", duration=200))
+        self.assertTrue(p._attr_supported_features & F.SEEK)
+
+    def test_no_seek_without_track_length(self):
+        p, _, _ = player(playback=Playback(state=0, title="X"))
+        self.assertFalse(p._attr_supported_features & F.SEEK)
+
+    def test_no_seek_when_device_refuses(self):
+        p, _, _ = player(playback=Playback(state=0, title="X", duration=200, can_seek=False))
+        self.assertFalse(p._attr_supported_features & F.SEEK)
+
+    def test_seek_sends_position(self):
+        p, _, s = player(playback=Playback(state=0, title="X", duration=200))
+        asyncio.run(p.async_media_seek(42))
+        self.assertEqual(s.commands, ["SEEK"])
 
 
 class NamingTest(unittest.TestCase):

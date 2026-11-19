@@ -29,6 +29,43 @@ class FlagTest(unittest.TestCase):
         self.assertIsNone(playback.can_next)
 
 
+def _view(cover, title="Dreadlock Holiday", artist="10cc"):
+    import json
+    return json.dumps({"Window CONTENTS": {
+        "TrackName": title, "Artist": artist, "Album": "Greatest Hits", "CoverArtUrl": cover,
+    }}).encode()
+
+
+class CoverTest(unittest.TestCase):
+    """Pre35 with Roon, 18.11.2026: CoverArtUrl is just "coverart.jpg"."""
+
+    def test_file_name_becomes_device_address(self):
+        url = luci._playback(_view("coverart.jpg"), 0, "192.168.0.30").cover_art_url
+        self.assertTrue(url.startswith("http://192.168.0.30/coverart.jpg?track="), url)
+
+    def test_new_track_gets_new_address(self):
+        first = luci._playback(_view("coverart.jpg"), 0, "192.168.0.30").cover_art_url
+        same = luci._playback(_view("coverart.jpg"), 0, "192.168.0.30").cover_art_url
+        other = luci._playback(_view("coverart.jpg", title="Oxygène, Pt. 4"), 0, "192.168.0.30").cover_art_url
+        self.assertEqual(first, same)
+        self.assertNotEqual(first, other)
+
+    def test_placeholder_is_no_cover(self):
+        self.assertIsNone(luci._playback(_view("defaultArt.jpg"), 0, "192.168.0.30").cover_art_url)
+
+    def test_unsafe_names_are_dropped(self):
+        for name in ("../etc/passwd", "a/b.jpg", "x.jpg?y=1", "cover.exe", "c over.jpg", "//evil/x.jpg",
+                     "javascript:x.jpg", "ftp://h/x.jpg"):
+            self.assertIsNone(luci._playback(_view(name), 0, "192.168.0.30").cover_art_url, name)
+
+    def test_full_addresses_stay_as_they_are(self):
+        url = "http://192.168.0.28:9790/minimserver/x.jpg"
+        self.assertEqual(luci._playback(_view(url), 0, "192.168.0.30").cover_art_url, url)
+
+    def test_without_host_a_file_name_is_dropped(self):
+        self.assertIsNone(luci._playback(_view("coverart.jpg"), 0).cover_art_url)
+
+
 class StalePositionTest(unittest.IsolatedAsyncioTestCase):
     async def test_position_beyond_track_length_is_ignored(self):
         client = luci.LuciPlaybackClient("127.0.0.1")

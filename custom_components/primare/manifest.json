@@ -1,7 +1,12 @@
 {
   "domain": "primare",
   "name": "Primare",
-  "codeowners": ["@Sulzburg"],
+  "categories": [
+    "media_entertainment.speakers_audio"
+  ],
+  "codeowners": [
+    "@Sulzburg"
+  ],
   "config_flow": true,
   "dependencies": [],
   "documentation": "https://github.com/Sulzburg/primare/blob/main/README.md",
@@ -9,5 +14,5 @@
   "iot_class": "local_push",
   "issue_tracker": "https://github.com/Sulzburg/primare/issues",
   "requirements": [],
-  "version": "3.0.0"
+  "version": "3.0.1"
 }

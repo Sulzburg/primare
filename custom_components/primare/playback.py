@@ -27,6 +27,7 @@ from .luci import LuciPlaybackClient, Playback
 _LOGGER = logging.getLogger(__name__)
 RESYNC_INTERVAL = timedelta(seconds=60)
 RECONNECT_DELAY = 5
+TITLE_RETRY = 3  # no title while playing: read it again
 STATES = {
     0: MediaPlayerState.PLAYING,
     1: MediaPlayerState.IDLE,
@@ -144,6 +145,9 @@ class StreamerPlayback:
             self._cancel_scheduled_sync()
             self._stale = False
             self._coordinator.async_set_updated_data(update)
+            if update.state in (0, 2) and update.title is None:
+                # Title dropped on a source change, or not sent yet: ask for it shortly.
+                self._schedule_sync(TITLE_RETRY)
 
     @callback
     def _cancel_scheduled_sync(self) -> None:

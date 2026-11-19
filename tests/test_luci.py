@@ -411,6 +411,8 @@ class LuciTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(self.connections, 3)
 
     async def test_regular_playing_positions_do_not_publish_but_seek_does(self):
+        # A track with a length – without one (radio) position changes are not published.
+        self.play_view = {"TrackName": "Track", "TotalTime": 300000}
         updates = asyncio.Queue()
         self.client.subscribe(updates.put_nowait)
         self.position_reply = frame(luci.POSITION, b"-1000")
@@ -429,6 +431,58 @@ class LuciTest(unittest.IsolatedAsyncioTestCase):
         self.writer.write(frame(luci.POSITION, b"60000", 0))
         await self.writer.drain()
         self.assertEqual((await asyncio.wait_for(updates.get(), 1)).position, 60)
+
+    async def test_live_stream_position_pushes_do_not_publish(self):
+        # Internet radio over UPnP (Pre35, 18.11.2026): no track length, and the device
+        # keeps pushing a position that does not follow the clock – twice a second.
+        updates = asyncio.Queue()
+        self.client.subscribe(updates.put_nowait)
+        self.play_view = {"TrackName": "Radio", "TotalTime": 0}
+        self.position_reply = frame(luci.POSITION, b"-1000")
+        await self.client.async_read()
+        # Constant, jumping and alternating counters – none of it follows the clock.
+        for value in (b"0", b"0", b"5000", b"0", b"120000", b"3000"):
+            self.writer.write(frame(luci.POSITION, value, 0))
+            await self.writer.drain()
+            await asyncio.sleep(0.5)
+        await asyncio.sleep(luci.PUSH_SETTLE * 2)
+        self.assertLessEqual(updates.qsize(), 1)
+
+    async def test_source_change_drops_the_old_title(self):
+        updates = asyncio.Queue()
+        self.client.subscribe(updates.put_nowait)
+        self.play_view = {"TrackName": "Zebra", "TotalTime": 300000}
+        await self.client.async_read()
+        self.writer.write(frame(luci.SOURCE, b"27", 0))
+        await self.writer.drain()
+        first = await asyncio.wait_for(updates.get(), 1)
+        self.assertEqual(first.source_id, 27)
+        self.writer.write(frame(luci.SOURCE, b"2", 0))
+        await self.writer.drain()
+        changed = await asyncio.wait_for(updates.get(), 1)
+        self.assertEqual(changed.source_id, 2)
+        self.assertIsNone(changed.title)
+
+    async def test_resent_title_of_previous_source_is_ignored(self):
+        updates = asyncio.Queue()
+        self.client.subscribe(updates.put_nowait)
+        self.play_view = {"TrackName": "Pneuma", "Artist": "Tool", "TotalTime": 713000}
+        await self.client.async_read()
+        self.writer.write(frame(luci.SOURCE, b"27", 0))
+        await self.writer.drain()
+        await asyncio.wait_for(updates.get(), 1)
+        self.writer.write(frame(luci.SOURCE, b"2", 0))
+        await self.writer.drain()
+        self.assertIsNone((await asyncio.wait_for(updates.get(), 1)).title)
+        old = json.dumps({"Window CONTENTS": {"TrackName": "Pneuma", "Artist": "Tool", "TotalTime": 713000}})
+        self.writer.write(frame(luci.PLAY_VIEW_PUSH, old.encode(), 0))
+        await self.writer.drain()
+        await asyncio.sleep(luci.PUSH_SETTLE * 3)
+        self.assertTrue(updates.empty())
+        new = json.dumps({"Window CONTENTS": {"TrackName": "Radio", "TotalTime": 0}})
+        self.writer.write(frame(luci.PLAY_VIEW_PUSH, new.encode(), 0))
+        await self.writer.drain()
+        self.assertEqual((await asyncio.wait_for(updates.get(), 1)).title, "Radio")
 
     async def test_shutdown_closes_and_prevents_reconnection(self):
         await self.client.async_read()
