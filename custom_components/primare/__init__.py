@@ -66,7 +66,7 @@ def build_profile(entry: ConfigEntry) -> DeviceProfile:
         try:
             inputs = parse_inputs(entry.options[CONF_INPUTS])
         except ValueError:
-            _LOGGER.warning("%s: Eingangsliste in den Optionen ungültig – nutze Vorgabe", entry.title)
+            _LOGGER.warning("%s: invalid input list in the options – using the defaults", entry.title)
     return DeviceProfile(device_type, inputs)
 
 

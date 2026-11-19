@@ -16,7 +16,7 @@ from homeassistant.util import dt as dt_util
 
 from . import PrimareConfigEntry
 from .client import VOLUME_MAX
-from .const import DSP_MAP, DSP_MAP_INV
+from .const import DOMAIN, DSP_MAP, DSP_MAP_INV
 from .entity import PrimareEntity
 from .luci import SOURCES, Playback
 from .playback import STATES, StreamerPlayback, async_remove_old_playback_entity
@@ -240,13 +240,21 @@ class PrimareMediaPlayer(PrimareEntity, MediaPlayerEntity):
     async def async_select_source(self, source: str) -> None:
         number = self._profile.inputs_inv.get(source)
         if number is None:
-            raise ServiceValidationError(f"Unknown input: {source}")
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="unknown_input",
+                translation_placeholders={"option": source},
+            )
         await self._send(self._client.set_input(number))
 
     async def async_select_sound_mode(self, sound_mode: str) -> None:
         number = DSP_MAP_INV.get(sound_mode)
         if number is None:
-            raise ServiceValidationError(f"Unknown DSP mode: {sound_mode}")
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="unknown_dsp_mode",
+                translation_placeholders={"option": sound_mode},
+            )
         await self._send(self._client.set_dsp(number))
 
     async def async_media_play(self) -> None:

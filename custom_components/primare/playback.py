@@ -199,7 +199,11 @@ class StreamerPlayback:
         except (OSError, EOFError, ValueError) as err:
             if not self._luci.connected:
                 self._handle_luci_event(err)
-            raise HomeAssistantError(f"Streamer not controllable: {err}") from err
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="streamer_not_controllable",
+                translation_placeholders={"error": str(err)},
+            ) from err
         self._schedule_sync(1)
 
 

@@ -59,25 +59,35 @@ def _resolve(hass: HomeAssistant, call: ServiceCall) -> PrimareClient:
         if e.state is ConfigEntryState.LOADED
     ]
     if not entries:
-        raise ServiceValidationError("Kein Primare-Gerät geladen.")
+        raise ServiceValidationError(translation_domain=DOMAIN, translation_key="no_device")
 
     data = call.data
     if device_id := data.get("device_id"):
         if isinstance(device_id, list):
             if len(device_id) != 1:
-                raise ServiceValidationError("Bitte genau ein Gerät wählen.")
+                raise ServiceValidationError(
+                    translation_domain=DOMAIN, translation_key="select_one_device"
+                )
             device_id = device_id[0]
         device = dr.async_get(hass).async_get(device_id)
         for entry in entries:
             if device and entry.entry_id in device.config_entries:
                 return entry.runtime_data.client
-        raise ServiceValidationError(f"Gerät nicht gefunden: {device_id}")
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="device_not_found",
+            translation_placeholders={"device_id": device_id},
+        )
 
     if entry_id := data.get("entry_id"):
         for entry in entries:
             if entry.entry_id == entry_id:
                 return entry.runtime_data.client
-        raise ServiceValidationError(f"entry_id nicht gefunden: {entry_id}")
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="entry_not_found",
+            translation_placeholders={"entry_id": entry_id},
+        )
 
     if name := data.get("device_name"):
         wanted = name.casefold()
@@ -88,18 +98,28 @@ def _resolve(hass: HomeAssistant, call: ServiceCall) -> PrimareClient:
         if len(matches) == 1:
             return matches[0].runtime_data.client
         known = ", ".join(e.title for e in entries)
-        raise ServiceValidationError(f"device_name nicht eindeutig/gefunden: {name} (bekannt: {known})")
+        raise ServiceValidationError(
+            translation_domain=DOMAIN,
+            translation_key="device_name_ambiguous",
+            translation_placeholders={"name": name, "known": known},
+        )
 
     if len(entries) == 1:
         return entries[0].runtime_data.client
-    raise ServiceValidationError("Mehrere Primare-Geräte – bitte ein Gerät angeben.")
+    raise ServiceValidationError(
+        translation_domain=DOMAIN, translation_key="several_devices"
+    )
 
 
 async def _run(coro) -> None:
     try:
         await coro
     except PrimareNotConnected as err:
-        raise HomeAssistantError(str(err)) from err
+        raise HomeAssistantError(
+            translation_domain=DOMAIN,
+            translation_key="not_connected",
+            translation_placeholders={"error": str(err)},
+        ) from err
 
 
 @callback
@@ -119,7 +139,9 @@ def async_setup_services(hass: HomeAssistant) -> None:
             await _run(client.step_volume(delta, call.data["step_delay_ms"] / 1000))
             return
         if client.volume is None:
-            raise HomeAssistantError("Aktuelle Lautstärke unbekannt.")
+            raise HomeAssistantError(
+                translation_domain=DOMAIN, translation_key="volume_unknown"
+            )
         await _run(client.set_volume(client.volume + delta))
 
     async def volume_fade(call: ServiceCall) -> None:

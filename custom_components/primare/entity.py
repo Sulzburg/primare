@@ -48,4 +48,8 @@ class PrimareEntity(Entity):
         try:
             await coro
         except PrimareNotConnected as err:
-            raise HomeAssistantError(str(err)) from err
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="not_connected",
+                translation_placeholders={"error": str(err)},
+            ) from err

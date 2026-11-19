@@ -8,7 +8,7 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
 from . import PrimareConfigEntry
-from .const import DSP_MAP, DSP_MAP_INV
+from .const import DOMAIN, DSP_MAP, DSP_MAP_INV
 from .entity import PrimareEntity
 
 
@@ -43,7 +43,11 @@ class PrimareInputSelect(PrimareEntity, SelectEntity):
     async def async_select_option(self, option: str) -> None:
         number = self._profile.inputs_inv.get(option)
         if number is None:
-            raise ServiceValidationError(f"Unbekannter Eingang: {option}")
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="unknown_input",
+                translation_placeholders={"option": option},
+            )
         await self._send(self._client.set_input(number))
 
 
@@ -64,5 +68,9 @@ class PrimareDspSelect(PrimareEntity, SelectEntity):
     async def async_select_option(self, option: str) -> None:
         number = DSP_MAP_INV.get(option)
         if number is None:
-            raise ServiceValidationError(f"Unbekannter DSP-Modus: {option}")
+            raise ServiceValidationError(
+                translation_domain=DOMAIN,
+                translation_key="unknown_dsp_mode",
+                translation_placeholders={"option": option},
+            )
         await self._send(self._client.set_dsp(number))

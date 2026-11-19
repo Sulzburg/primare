@@ -91,8 +91,8 @@ class DeviceProfile:
     def model(self) -> str:
         return {
             TYPE_MULTICHANNEL: "SP25 / SPA25",
-            TYPE_STEREO: "Stereo-Vorverstärker",
-            TYPE_STREAMER: "Netzwerkplayer",
+            TYPE_STEREO: "Stereo preamplifier",
+            TYPE_STREAMER: "Network player",
         }.get(self.device_type, self.device_type)
 
     @property

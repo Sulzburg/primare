@@ -49,6 +49,15 @@
       "invalid_inputs": "Invalid line. Format: 4 = HDMI ARC (number 1–17, each name only once)."
     }
   },
+  "selector": {
+    "device_type": {
+      "options": {
+        "multichannel": "SP25 / SPA25 (Presets + DSP)",
+        "stereo": "Pre/integrated amplifier (inputs)",
+        "streamer": "Network player (power + volume only)"
+      }
+    }
+  },
   "entity": {
     "button": {
       "volume_up": {
@@ -89,6 +98,159 @@
       "mute": {
         "name": "Mute"
       }
+    }
+  },
+  "services": {
+    "volume_up": {
+      "name": "Volume Up",
+      "description": "Increase volume by a number of steps using !1vol.u.",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "Primare device (recommended)."
+        },
+        "entry_id": {
+          "name": "Entry ID",
+          "description": "Alternative: entry_id of the device (old way)."
+        },
+        "device_name": {
+          "name": "Device name",
+          "description": "Alternative: name of the device (old way)."
+        },
+        "times": {
+          "name": "Times",
+          "description": "Number of steps to increase (1–10)."
+        }
+      }
+    },
+    "volume_down": {
+      "name": "Volume Down",
+      "description": "Decrease volume by a number of steps using !1vol.d.",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "Primare device (recommended)."
+        },
+        "entry_id": {
+          "name": "Entry ID",
+          "description": "Alternative: entry_id of the device (old way)."
+        },
+        "device_name": {
+          "name": "Device name",
+          "description": "Alternative: name of the device (old way)."
+        },
+        "times": {
+          "name": "Times",
+          "description": "Number of steps to decrease (1–10)."
+        }
+      }
+    },
+    "volume_relative": {
+      "name": "Volume Relative",
+      "description": "Change volume by a positive/negative delta (steps or absolute).",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "Primare device (recommended)."
+        },
+        "entry_id": {
+          "name": "Entry ID",
+          "description": "Alternative: entry_id of the device (old way)."
+        },
+        "device_name": {
+          "name": "Device name",
+          "description": "Alternative: name of the device (old way)."
+        },
+        "delta": {
+          "name": "Delta",
+          "description": "Positive = louder, negative = quieter."
+        },
+        "mode": {
+          "name": "Mode",
+          "description": "steps: uses !1vol.u/d; absolute: sends !1vol.NN with current+delta."
+        },
+        "step_delay_ms": {
+          "name": "Step delay (ms)",
+          "description": "Delay between step commands (only for mode=steps)."
+        }
+      }
+    },
+    "volume_fade": {
+      "name": "Volume Fade",
+      "description": "Fade from the current to the target volume. A running fade on the same device is cancelled.",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "Primare device (recommended)."
+        },
+        "entry_id": {
+          "name": "Entry ID",
+          "description": "Alternative: entry_id of the device (old way)."
+        },
+        "device_name": {
+          "name": "Device name",
+          "description": "Alternative: name of the device (old way)."
+        },
+        "target": {
+          "name": "Target volume",
+          "description": "Target volume (0–99). Default 0 (fade out)."
+        },
+        "duration_ms": {
+          "name": "Duration (ms)",
+          "description": "Total fade duration in milliseconds."
+        },
+        "easing": {
+          "name": "Easing",
+          "description": "Fade curve."
+        },
+        "mode": {
+          "name": "Mode",
+          "description": "absolute: send !1vol.NN steps; steps: use !1vol.u/d for each substep."
+        },
+        "steps": {
+          "name": "Steps",
+          "description": "Number of interpolation steps (1–100)."
+        },
+        "step_delay_ms": {
+          "name": "Step delay (ms, steps mode)",
+          "description": "Only used when mode=steps (delay between !1vol.u/d)."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "unknown_input": {
+      "message": "Unknown input: {option}"
+    },
+    "unknown_dsp_mode": {
+      "message": "Unknown DSP mode: {option}"
+    },
+    "no_device": {
+      "message": "No Primare device loaded."
+    },
+    "select_one_device": {
+      "message": "Please select exactly one device."
+    },
+    "device_not_found": {
+      "message": "Device not found: {device_id}"
+    },
+    "entry_not_found": {
+      "message": "entry_id not found: {entry_id}"
+    },
+    "device_name_ambiguous": {
+      "message": "device_name not found or ambiguous: {name} (known: {known})"
+    },
+    "several_devices": {
+      "message": "Several Primare devices – please specify one."
+    },
+    "not_connected": {
+      "message": "Not connected: {error}"
+    },
+    "volume_unknown": {
+      "message": "Current volume unknown."
+    },
+    "streamer_not_controllable": {
+      "message": "Streamer not controllable: {error}"
     }
   }
 }
