@@ -99,5 +99,158 @@
         "name": "Stumm"
       }
     }
+  },
+  "services": {
+    "volume_up": {
+      "name": "Lauter",
+      "description": "Erhöht die Lautstärke um eine Anzahl Stufen (!1vol.u).",
+      "fields": {
+        "device_id": {
+          "name": "Gerät",
+          "description": "Primare-Gerät (empfohlen)."
+        },
+        "entry_id": {
+          "name": "Entry-ID",
+          "description": "Alternative: entry_id des Geräts (alter Weg)."
+        },
+        "device_name": {
+          "name": "Gerätename",
+          "description": "Alternative: Name des Geräts (alter Weg)."
+        },
+        "times": {
+          "name": "Anzahl",
+          "description": "Anzahl der Stufen zum Erhöhen (1–10)."
+        }
+      }
+    },
+    "volume_down": {
+      "name": "Leiser",
+      "description": "Verringert die Lautstärke um eine Anzahl Stufen (!1vol.d).",
+      "fields": {
+        "device_id": {
+          "name": "Gerät",
+          "description": "Primare-Gerät (empfohlen)."
+        },
+        "entry_id": {
+          "name": "Entry-ID",
+          "description": "Alternative: entry_id des Geräts (alter Weg)."
+        },
+        "device_name": {
+          "name": "Gerätename",
+          "description": "Alternative: Name des Geräts (alter Weg)."
+        },
+        "times": {
+          "name": "Anzahl",
+          "description": "Anzahl der Stufen zum Verringern (1–10)."
+        }
+      }
+    },
+    "volume_relative": {
+      "name": "Lautstärke relativ",
+      "description": "Ändert die Lautstärke um einen positiven/negativen Wert (Stufen oder absolut).",
+      "fields": {
+        "device_id": {
+          "name": "Gerät",
+          "description": "Primare-Gerät (empfohlen)."
+        },
+        "entry_id": {
+          "name": "Entry-ID",
+          "description": "Alternative: entry_id des Geräts (alter Weg)."
+        },
+        "device_name": {
+          "name": "Gerätename",
+          "description": "Alternative: Name des Geräts (alter Weg)."
+        },
+        "delta": {
+          "name": "Delta",
+          "description": "Positiv = lauter, negativ = leiser."
+        },
+        "mode": {
+          "name": "Modus",
+          "description": "steps: nutzt !1vol.u/d; absolute: sendet !1vol.NN mit aktuell+Delta."
+        },
+        "step_delay_ms": {
+          "name": "Schrittverzögerung (ms)",
+          "description": "Verzögerung zwischen den Schrittbefehlen (nur bei mode=steps)."
+        }
+      }
+    },
+    "volume_fade": {
+      "name": "Lautstärke überblenden",
+      "description": "Blendet von der aktuellen zur Ziel-Lautstärke. Eine laufende Überblendung am selben Gerät wird abgebrochen.",
+      "fields": {
+        "device_id": {
+          "name": "Gerät",
+          "description": "Primare-Gerät (empfohlen)."
+        },
+        "entry_id": {
+          "name": "Entry-ID",
+          "description": "Alternative: entry_id des Geräts (alter Weg)."
+        },
+        "device_name": {
+          "name": "Gerätename",
+          "description": "Alternative: Name des Geräts (alter Weg)."
+        },
+        "target": {
+          "name": "Ziel-Lautstärke",
+          "description": "Ziel-Lautstärke (0–99). Standard 0 (Ausblenden)."
+        },
+        "duration_ms": {
+          "name": "Dauer (ms)",
+          "description": "Gesamtdauer der Überblendung in Millisekunden."
+        },
+        "easing": {
+          "name": "Kurve",
+          "description": "Verlauf der Überblendung."
+        },
+        "mode": {
+          "name": "Modus",
+          "description": "absolute: sendet !1vol.NN-Schritte; steps: nutzt !1vol.u/d je Teilschritt."
+        },
+        "steps": {
+          "name": "Schritte",
+          "description": "Anzahl der Zwischenschritte (1–100)."
+        },
+        "step_delay_ms": {
+          "name": "Schrittverzögerung (ms, steps-Modus)",
+          "description": "Nur bei mode=steps (Verzögerung zwischen !1vol.u/d)."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "unknown_input": {
+      "message": "Unbekannter Eingang: {option}"
+    },
+    "unknown_dsp_mode": {
+      "message": "Unbekannter DSP-Modus: {option}"
+    },
+    "no_device": {
+      "message": "Kein Primare-Gerät geladen."
+    },
+    "select_one_device": {
+      "message": "Bitte genau ein Gerät wählen."
+    },
+    "device_not_found": {
+      "message": "Gerät nicht gefunden: {device_id}"
+    },
+    "entry_not_found": {
+      "message": "entry_id nicht gefunden: {entry_id}"
+    },
+    "device_name_ambiguous": {
+      "message": "device_name nicht eindeutig/gefunden: {name} (bekannt: {known})"
+    },
+    "several_devices": {
+      "message": "Mehrere Primare-Geräte – bitte ein Gerät angeben."
+    },
+    "not_connected": {
+      "message": "Nicht verbunden: {error}"
+    },
+    "volume_unknown": {
+      "message": "Aktuelle Lautstärke unbekannt."
+    },
+    "streamer_not_controllable": {
+      "message": "Streamer nicht steuerbar: {error}"
+    }
   }
 }
