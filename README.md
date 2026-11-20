@@ -27,8 +27,12 @@ Tested with SP25, Pre35 and NP5 MKII.
 
 ### HACS
 
-1. HACS → ⋮ → **Custom repositories** → add `https://github.com/Sulzburg/primare` as *Integration*.
-2. Search for **Primare**, download it and restart Home Assistant.
+Primare is in the default HACS catalog, so you can just search for it:
+
+1. In HACS, search for **Primare** and open it.
+2. Download it and restart Home Assistant.
+
+If it doesn't show up yet (it can take a little while after a release), add it as a custom repository instead: HACS → ⋮ → **Custom repositories** → add `https://github.com/Sulzburg/primare` as *Integration*, then search for **Primare**, download it and restart Home Assistant.
 
 ### Manual
 
