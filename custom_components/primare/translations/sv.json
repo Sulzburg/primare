@@ -1,0 +1,256 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Lägg till Primare-enhet",
+        "data": {
+          "ip_address": "IP-adress",
+          "port": "Port",
+          "device_name": "Namn",
+          "device_type": "Enhetstyp"
+        },
+        "data_description": {
+          "port": "Primare-standard: 50006",
+          "device_name": "Används som enhetsnamn och entitetsprefix, t.ex. SP25"
+        }
+      },
+      "reconfigure": {
+        "title": "Ändra anslutning",
+        "data": {
+          "ip_address": "IP-adress",
+          "port": "Port"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Kan inte ansluta. Kontrollera IP-adress, port och nätverksstandby."
+    },
+    "abort": {
+      "already_configured": "Den här enheten är redan konfigurerad.",
+      "reconfigure_successful": "Anslutningen uppdaterad."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Primare-alternativ",
+        "data": {
+          "device_type": "Enhetstyp",
+          "max_volume": "Maximal volym",
+          "inputs": "Ingångar / förval"
+        },
+        "data_description": {
+          "max_volume": "Home Assistant ställer aldrig in en högre volym – reglage, röst, automation eller åtgärd. 99 = ingen gräns. Själva enheten begränsas inte.",
+          "inputs": "En rad per ingång: nummer = namn (1–17). Lämna tomt om ingen ingångsväljare önskas."
+        }
+      }
+    },
+    "error": {
+      "invalid_inputs": "Ogiltig rad. Format: 4 = HDMI ARC (nummer 1–17, varje namn endast en gång)."
+    }
+  },
+  "selector": {
+    "device_type": {
+      "options": {
+        "multichannel": "SP25 / SPA25 (förval + DSP)",
+        "stereo": "För-/integrerad förstärkare (ingångar)",
+        "streamer": "Nätverksspelare (endast ström + volym)"
+      }
+    }
+  },
+  "entity": {
+    "button": {
+      "volume_up": {
+        "name": "Volym upp"
+      },
+      "volume_down": {
+        "name": "Volym ned"
+      }
+    },
+    "number": {
+      "volume": {
+        "name": "Volym"
+      }
+    },
+    "select": {
+      "input": {
+        "name": "Ingång"
+      },
+      "dsp_mode": {
+        "name": "DSP-läge"
+      }
+    },
+    "sensor": {
+      "volume_status": {
+        "name": "Volym (status)"
+      },
+      "input_status": {
+        "name": "Ingång (status)"
+      },
+      "dsp_mode_status": {
+        "name": "DSP-läge (status)"
+      }
+    },
+    "switch": {
+      "power": {
+        "name": "Ström"
+      },
+      "mute": {
+        "name": "Ljud av"
+      }
+    }
+  },
+  "services": {
+    "volume_up": {
+      "name": "Höj volym",
+      "description": "Höj volymen ett antal steg med !1vol.u.",
+      "fields": {
+        "device_id": {
+          "name": "Enhet",
+          "description": "Primare-enhet (rekommenderas)."
+        },
+        "entry_id": {
+          "name": "Post-ID",
+          "description": "Alternativ: enhetens entry_id (gammalt sätt)."
+        },
+        "device_name": {
+          "name": "Enhetsnamn",
+          "description": "Alternativ: enhetens namn (gammalt sätt)."
+        },
+        "times": {
+          "name": "Antal gånger",
+          "description": "Antal steg att höja (1–10)."
+        }
+      }
+    },
+    "volume_down": {
+      "name": "Sänk volym",
+      "description": "Sänk volymen ett antal steg med !1vol.d.",
+      "fields": {
+        "device_id": {
+          "name": "Enhet",
+          "description": "Primare-enhet (rekommenderas)."
+        },
+        "entry_id": {
+          "name": "Post-ID",
+          "description": "Alternativ: enhetens entry_id (gammalt sätt)."
+        },
+        "device_name": {
+          "name": "Enhetsnamn",
+          "description": "Alternativ: enhetens namn (gammalt sätt)."
+        },
+        "times": {
+          "name": "Antal gånger",
+          "description": "Antal steg att sänka (1–10)."
+        }
+      }
+    },
+    "volume_relative": {
+      "name": "Relativ volym",
+      "description": "Ändra volymen med ett positivt/negativt delta (steg eller absolut).",
+      "fields": {
+        "device_id": {
+          "name": "Enhet",
+          "description": "Primare-enhet (rekommenderas)."
+        },
+        "entry_id": {
+          "name": "Post-ID",
+          "description": "Alternativ: enhetens entry_id (gammalt sätt)."
+        },
+        "device_name": {
+          "name": "Enhetsnamn",
+          "description": "Alternativ: enhetens namn (gammalt sätt)."
+        },
+        "delta": {
+          "name": "Delta",
+          "description": "Positivt = högre, negativt = lägre."
+        },
+        "mode": {
+          "name": "Läge",
+          "description": "steps: använder !1vol.u/d; absolute: skickar !1vol.NN med nuvarande+delta."
+        },
+        "step_delay_ms": {
+          "name": "Stegfördröjning (ms)",
+          "description": "Fördröjning mellan stegkommandon (endast för mode=steps)."
+        }
+      }
+    },
+    "volume_fade": {
+      "name": "Tona volym",
+      "description": "Tona från nuvarande till målvolymen. En pågående toning på samma enhet avbryts.",
+      "fields": {
+        "device_id": {
+          "name": "Enhet",
+          "description": "Primare-enhet (rekommenderas)."
+        },
+        "entry_id": {
+          "name": "Post-ID",
+          "description": "Alternativ: enhetens entry_id (gammalt sätt)."
+        },
+        "device_name": {
+          "name": "Enhetsnamn",
+          "description": "Alternativ: enhetens namn (gammalt sätt)."
+        },
+        "target": {
+          "name": "Målvolym",
+          "description": "Målvolym (0–99). Standard 0 (tona ut)."
+        },
+        "duration_ms": {
+          "name": "Varaktighet (ms)",
+          "description": "Total toningstid i millisekunder."
+        },
+        "easing": {
+          "name": "Övergångskurva",
+          "description": "Toningskurva."
+        },
+        "mode": {
+          "name": "Läge",
+          "description": "absolute: skicka !1vol.NN-steg; steps: använd !1vol.u/d för varje delsteg."
+        },
+        "steps": {
+          "name": "Steg",
+          "description": "Antal interpolationssteg (1–100)."
+        },
+        "step_delay_ms": {
+          "name": "Stegfördröjning (ms, steg-läge)",
+          "description": "Används endast när mode=steps (fördröjning mellan !1vol.u/d)."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "unknown_input": {
+      "message": "Okänd ingång: {option}"
+    },
+    "unknown_dsp_mode": {
+      "message": "Okänt DSP-läge: {option}"
+    },
+    "no_device": {
+      "message": "Ingen Primare-enhet inläst."
+    },
+    "select_one_device": {
+      "message": "Välj exakt en enhet."
+    },
+    "device_not_found": {
+      "message": "Enheten hittades inte: {device_id}"
+    },
+    "entry_not_found": {
+      "message": "entry_id hittades inte: {entry_id}"
+    },
+    "device_name_ambiguous": {
+      "message": "device_name hittades inte eller är tvetydigt: {name} (kända: {known})"
+    },
+    "several_devices": {
+      "message": "Flera Primare-enheter – ange en."
+    },
+    "not_connected": {
+      "message": "Inte ansluten: {error}"
+    },
+    "volume_unknown": {
+      "message": "Nuvarande volym okänd."
+    },
+    "streamer_not_controllable": {
+      "message": "Streamern kan inte styras: {error}"
+    }
+  }
+}

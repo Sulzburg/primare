@@ -1,0 +1,256 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Ajouter un appareil Primare",
+        "data": {
+          "ip_address": "Adresse IP",
+          "port": "Port",
+          "device_name": "Nom",
+          "device_type": "Type d'appareil"
+        },
+        "data_description": {
+          "port": "Valeur par défaut Primare : 50006",
+          "device_name": "Utilisé comme nom d'appareil et préfixe d'entité, p. ex. SP25"
+        }
+      },
+      "reconfigure": {
+        "title": "Modifier la connexion",
+        "data": {
+          "ip_address": "Adresse IP",
+          "port": "Port"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Connexion impossible. Vérifiez l'adresse IP, le port et la veille réseau."
+    },
+    "abort": {
+      "already_configured": "Cet appareil est déjà configuré.",
+      "reconfigure_successful": "Connexion mise à jour."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options Primare",
+        "data": {
+          "device_type": "Type d'appareil",
+          "max_volume": "Volume maximal",
+          "inputs": "Entrées / préréglages"
+        },
+        "data_description": {
+          "max_volume": "Home Assistant ne définit jamais un volume plus élevé – curseur, voix, automatisation ou action. 99 = aucune limite. L'appareil lui-même n'est pas limité.",
+          "inputs": "Une ligne par entrée : numéro = nom (1–17). Laissez vide pour ne pas afficher de sélecteur d'entrée."
+        }
+      }
+    },
+    "error": {
+      "invalid_inputs": "Ligne invalide. Format : 4 = HDMI ARC (numéro 1–17, chaque nom une seule fois)."
+    }
+  },
+  "selector": {
+    "device_type": {
+      "options": {
+        "multichannel": "SP25 / SPA25 (préréglages + DSP)",
+        "stereo": "Préamplificateur/amplificateur intégré (entrées)",
+        "streamer": "Lecteur réseau (alimentation + volume uniquement)"
+      }
+    }
+  },
+  "entity": {
+    "button": {
+      "volume_up": {
+        "name": "Volume +"
+      },
+      "volume_down": {
+        "name": "Volume -"
+      }
+    },
+    "number": {
+      "volume": {
+        "name": "Volume"
+      }
+    },
+    "select": {
+      "input": {
+        "name": "Entrée"
+      },
+      "dsp_mode": {
+        "name": "Mode DSP"
+      }
+    },
+    "sensor": {
+      "volume_status": {
+        "name": "Volume (état)"
+      },
+      "input_status": {
+        "name": "Entrée (état)"
+      },
+      "dsp_mode_status": {
+        "name": "Mode DSP (état)"
+      }
+    },
+    "switch": {
+      "power": {
+        "name": "Alimentation"
+      },
+      "mute": {
+        "name": "Sourdine"
+      }
+    }
+  },
+  "services": {
+    "volume_up": {
+      "name": "Augmenter le volume",
+      "description": "Augmente le volume d'un certain nombre de crans avec !1vol.u.",
+      "fields": {
+        "device_id": {
+          "name": "Appareil",
+          "description": "Appareil Primare (recommandé)."
+        },
+        "entry_id": {
+          "name": "ID d'entrée",
+          "description": "Alternative : entry_id de l'appareil (ancienne méthode)."
+        },
+        "device_name": {
+          "name": "Nom de l'appareil",
+          "description": "Alternative : nom de l'appareil (ancienne méthode)."
+        },
+        "times": {
+          "name": "Nombre de fois",
+          "description": "Nombre de crans à augmenter (1–10)."
+        }
+      }
+    },
+    "volume_down": {
+      "name": "Diminuer le volume",
+      "description": "Diminue le volume d'un certain nombre de crans avec !1vol.d.",
+      "fields": {
+        "device_id": {
+          "name": "Appareil",
+          "description": "Appareil Primare (recommandé)."
+        },
+        "entry_id": {
+          "name": "ID d'entrée",
+          "description": "Alternative : entry_id de l'appareil (ancienne méthode)."
+        },
+        "device_name": {
+          "name": "Nom de l'appareil",
+          "description": "Alternative : nom de l'appareil (ancienne méthode)."
+        },
+        "times": {
+          "name": "Nombre de fois",
+          "description": "Nombre de crans à diminuer (1–10)."
+        }
+      }
+    },
+    "volume_relative": {
+      "name": "Volume relatif",
+      "description": "Modifie le volume d'un delta positif/négatif (crans ou absolu).",
+      "fields": {
+        "device_id": {
+          "name": "Appareil",
+          "description": "Appareil Primare (recommandé)."
+        },
+        "entry_id": {
+          "name": "ID d'entrée",
+          "description": "Alternative : entry_id de l'appareil (ancienne méthode)."
+        },
+        "device_name": {
+          "name": "Nom de l'appareil",
+          "description": "Alternative : nom de l'appareil (ancienne méthode)."
+        },
+        "delta": {
+          "name": "Delta",
+          "description": "Positif = plus fort, négatif = plus faible."
+        },
+        "mode": {
+          "name": "Mode",
+          "description": "steps : utilise !1vol.u/d ; absolute : envoie !1vol.NN avec actuel+delta."
+        },
+        "step_delay_ms": {
+          "name": "Délai entre crans (ms)",
+          "description": "Délai entre les commandes de cran (uniquement pour mode=steps)."
+        }
+      }
+    },
+    "volume_fade": {
+      "name": "Fondu de volume",
+      "description": "Effectue un fondu du volume actuel vers le volume cible. Un fondu en cours sur le même appareil est annulé.",
+      "fields": {
+        "device_id": {
+          "name": "Appareil",
+          "description": "Appareil Primare (recommandé)."
+        },
+        "entry_id": {
+          "name": "ID d'entrée",
+          "description": "Alternative : entry_id de l'appareil (ancienne méthode)."
+        },
+        "device_name": {
+          "name": "Nom de l'appareil",
+          "description": "Alternative : nom de l'appareil (ancienne méthode)."
+        },
+        "target": {
+          "name": "Volume cible",
+          "description": "Volume cible (0–99). Par défaut 0 (fondu en sortie)."
+        },
+        "duration_ms": {
+          "name": "Durée (ms)",
+          "description": "Durée totale du fondu en millisecondes."
+        },
+        "easing": {
+          "name": "Courbe",
+          "description": "Courbe du fondu."
+        },
+        "mode": {
+          "name": "Mode",
+          "description": "absolute : envoie des crans !1vol.NN ; steps : utilise !1vol.u/d pour chaque sous-cran."
+        },
+        "steps": {
+          "name": "Crans",
+          "description": "Nombre de crans d'interpolation (1–100)."
+        },
+        "step_delay_ms": {
+          "name": "Délai entre crans (ms, mode steps)",
+          "description": "Utilisé uniquement lorsque mode=steps (délai entre !1vol.u/d)."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "unknown_input": {
+      "message": "Entrée inconnue : {option}"
+    },
+    "unknown_dsp_mode": {
+      "message": "Mode DSP inconnu : {option}"
+    },
+    "no_device": {
+      "message": "Aucun appareil Primare chargé."
+    },
+    "select_one_device": {
+      "message": "Veuillez sélectionner exactement un appareil."
+    },
+    "device_not_found": {
+      "message": "Appareil introuvable : {device_id}"
+    },
+    "entry_not_found": {
+      "message": "entry_id introuvable : {entry_id}"
+    },
+    "device_name_ambiguous": {
+      "message": "device_name introuvable ou ambigu : {name} (connus : {known})"
+    },
+    "several_devices": {
+      "message": "Plusieurs appareils Primare – veuillez en préciser un."
+    },
+    "not_connected": {
+      "message": "Non connecté : {error}"
+    },
+    "volume_unknown": {
+      "message": "Volume actuel inconnu."
+    },
+    "streamer_not_controllable": {
+      "message": "Lecteur réseau non contrôlable : {error}"
+    }
+  }
+}
