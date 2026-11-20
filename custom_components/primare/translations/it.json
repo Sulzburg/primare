@@ -1,0 +1,256 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Aggiungi dispositivo Primare",
+        "data": {
+          "ip_address": "Indirizzo IP",
+          "port": "Porta",
+          "device_name": "Nome",
+          "device_type": "Tipo di dispositivo"
+        },
+        "data_description": {
+          "port": "Valore predefinito Primare: 50006",
+          "device_name": "Usato come nome del dispositivo e prefisso dell'entità, ad es. SP25"
+        }
+      },
+      "reconfigure": {
+        "title": "Modifica connessione",
+        "data": {
+          "ip_address": "Indirizzo IP",
+          "port": "Porta"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Impossibile connettersi. Controlla indirizzo IP, porta e standby di rete."
+    },
+    "abort": {
+      "already_configured": "Questo dispositivo è già configurato.",
+      "reconfigure_successful": "Connessione aggiornata."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opzioni Primare",
+        "data": {
+          "device_type": "Tipo di dispositivo",
+          "max_volume": "Volume massimo",
+          "inputs": "Ingressi / preimpostazioni"
+        },
+        "data_description": {
+          "max_volume": "Home Assistant non imposta mai un volume più alto: cursore, voce, automazione o azione. 99 = nessun limite. Il dispositivo stesso non è limitato.",
+          "inputs": "Una riga per ingresso: numero = nome (1–17). Lascia vuoto per non mostrare il selettore di ingresso."
+        }
+      }
+    },
+    "error": {
+      "invalid_inputs": "Riga non valida. Formato: 4 = HDMI ARC (numero 1–17, ogni nome una sola volta)."
+    }
+  },
+  "selector": {
+    "device_type": {
+      "options": {
+        "multichannel": "SP25 / SPA25 (preimpostazioni + DSP)",
+        "stereo": "Pre/amplificatore integrato (ingressi)",
+        "streamer": "Lettore di rete (solo accensione + volume)"
+      }
+    }
+  },
+  "entity": {
+    "button": {
+      "volume_up": {
+        "name": "Alza volume"
+      },
+      "volume_down": {
+        "name": "Abbassa volume"
+      }
+    },
+    "number": {
+      "volume": {
+        "name": "Volume"
+      }
+    },
+    "select": {
+      "input": {
+        "name": "Ingresso"
+      },
+      "dsp_mode": {
+        "name": "Modalità DSP"
+      }
+    },
+    "sensor": {
+      "volume_status": {
+        "name": "Volume (stato)"
+      },
+      "input_status": {
+        "name": "Ingresso (stato)"
+      },
+      "dsp_mode_status": {
+        "name": "Modalità DSP (stato)"
+      }
+    },
+    "switch": {
+      "power": {
+        "name": "Accensione"
+      },
+      "mute": {
+        "name": "Muto"
+      }
+    }
+  },
+  "services": {
+    "volume_up": {
+      "name": "Alza volume",
+      "description": "Alza il volume di un certo numero di passi con !1vol.u.",
+      "fields": {
+        "device_id": {
+          "name": "Dispositivo",
+          "description": "Dispositivo Primare (consigliato)."
+        },
+        "entry_id": {
+          "name": "ID voce",
+          "description": "Alternativa: entry_id del dispositivo (vecchio metodo)."
+        },
+        "device_name": {
+          "name": "Nome del dispositivo",
+          "description": "Alternativa: nome del dispositivo (vecchio metodo)."
+        },
+        "times": {
+          "name": "Volte",
+          "description": "Numero di passi per alzare (1–10)."
+        }
+      }
+    },
+    "volume_down": {
+      "name": "Abbassa volume",
+      "description": "Abbassa il volume di un certo numero di passi con !1vol.d.",
+      "fields": {
+        "device_id": {
+          "name": "Dispositivo",
+          "description": "Dispositivo Primare (consigliato)."
+        },
+        "entry_id": {
+          "name": "ID voce",
+          "description": "Alternativa: entry_id del dispositivo (vecchio metodo)."
+        },
+        "device_name": {
+          "name": "Nome del dispositivo",
+          "description": "Alternativa: nome del dispositivo (vecchio metodo)."
+        },
+        "times": {
+          "name": "Volte",
+          "description": "Numero di passi per abbassare (1–10)."
+        }
+      }
+    },
+    "volume_relative": {
+      "name": "Volume relativo",
+      "description": "Modifica il volume di un delta positivo/negativo (passi o assoluto).",
+      "fields": {
+        "device_id": {
+          "name": "Dispositivo",
+          "description": "Dispositivo Primare (consigliato)."
+        },
+        "entry_id": {
+          "name": "ID voce",
+          "description": "Alternativa: entry_id del dispositivo (vecchio metodo)."
+        },
+        "device_name": {
+          "name": "Nome del dispositivo",
+          "description": "Alternativa: nome del dispositivo (vecchio metodo)."
+        },
+        "delta": {
+          "name": "Delta",
+          "description": "Positivo = più alto, negativo = più basso."
+        },
+        "mode": {
+          "name": "Modalità",
+          "description": "steps: usa !1vol.u/d; absolute: invia !1vol.NN con attuale+delta."
+        },
+        "step_delay_ms": {
+          "name": "Ritardo tra passi (ms)",
+          "description": "Ritardo tra i comandi di passo (solo per mode=steps)."
+        }
+      }
+    },
+    "volume_fade": {
+      "name": "Dissolvenza volume",
+      "description": "Esegue una dissolvenza dal volume attuale a quello di destinazione. Una dissolvenza in corso sullo stesso dispositivo viene annullata.",
+      "fields": {
+        "device_id": {
+          "name": "Dispositivo",
+          "description": "Dispositivo Primare (consigliato)."
+        },
+        "entry_id": {
+          "name": "ID voce",
+          "description": "Alternativa: entry_id del dispositivo (vecchio metodo)."
+        },
+        "device_name": {
+          "name": "Nome del dispositivo",
+          "description": "Alternativa: nome del dispositivo (vecchio metodo)."
+        },
+        "target": {
+          "name": "Volume di destinazione",
+          "description": "Volume di destinazione (0–99). Predefinito 0 (dissolvenza in uscita)."
+        },
+        "duration_ms": {
+          "name": "Durata (ms)",
+          "description": "Durata totale della dissolvenza in millisecondi."
+        },
+        "easing": {
+          "name": "Curva",
+          "description": "Curva della dissolvenza."
+        },
+        "mode": {
+          "name": "Modalità",
+          "description": "absolute: invia passi !1vol.NN; steps: usa !1vol.u/d per ogni sotto-passo."
+        },
+        "steps": {
+          "name": "Passi",
+          "description": "Numero di passi di interpolazione (1–100)."
+        },
+        "step_delay_ms": {
+          "name": "Ritardo tra passi (ms, modalità steps)",
+          "description": "Usato solo quando mode=steps (ritardo tra !1vol.u/d)."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "unknown_input": {
+      "message": "Ingresso sconosciuto: {option}"
+    },
+    "unknown_dsp_mode": {
+      "message": "Modalità DSP sconosciuta: {option}"
+    },
+    "no_device": {
+      "message": "Nessun dispositivo Primare caricato."
+    },
+    "select_one_device": {
+      "message": "Seleziona esattamente un dispositivo."
+    },
+    "device_not_found": {
+      "message": "Dispositivo non trovato: {device_id}"
+    },
+    "entry_not_found": {
+      "message": "entry_id non trovato: {entry_id}"
+    },
+    "device_name_ambiguous": {
+      "message": "device_name non trovato o ambiguo: {name} (noti: {known})"
+    },
+    "several_devices": {
+      "message": "Diversi dispositivi Primare: specificane uno."
+    },
+    "not_connected": {
+      "message": "Non connesso: {error}"
+    },
+    "volume_unknown": {
+      "message": "Volume attuale sconosciuto."
+    },
+    "streamer_not_controllable": {
+      "message": "Lettore di rete non controllabile: {error}"
+    }
+  }
+}

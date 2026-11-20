@@ -1,0 +1,256 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Primare-apparaat toevoegen",
+        "data": {
+          "ip_address": "IP-adres",
+          "port": "Poort",
+          "device_name": "Naam",
+          "device_type": "Apparaattype"
+        },
+        "data_description": {
+          "port": "Primare-standaard: 50006",
+          "device_name": "Gebruikt als apparaatnaam en entiteitsprefix, bijv. SP25"
+        }
+      },
+      "reconfigure": {
+        "title": "Verbinding wijzigen",
+        "data": {
+          "ip_address": "IP-adres",
+          "port": "Poort"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Kan geen verbinding maken. Controleer IP-adres, poort en netwerkstand-by."
+    },
+    "abort": {
+      "already_configured": "Dit apparaat is al geconfigureerd.",
+      "reconfigure_successful": "Verbinding bijgewerkt."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Primare-opties",
+        "data": {
+          "device_type": "Apparaattype",
+          "max_volume": "Maximaal volume",
+          "inputs": "Ingangen / presets"
+        },
+        "data_description": {
+          "max_volume": "Home Assistant stelt nooit een hoger volume in – schuifregelaar, spraak, automatisering of actie. 99 = geen limiet. Het apparaat zelf is niet beperkt.",
+          "inputs": "Eén regel per ingang: nummer = naam (1–17). Laat leeg om geen ingangskeuze te tonen."
+        }
+      }
+    },
+    "error": {
+      "invalid_inputs": "Ongeldige regel. Formaat: 4 = HDMI ARC (nummer 1–17, elke naam slechts één keer)."
+    }
+  },
+  "selector": {
+    "device_type": {
+      "options": {
+        "multichannel": "SP25 / SPA25 (presets + DSP)",
+        "stereo": "Voor-/geïntegreerde versterker (ingangen)",
+        "streamer": "Netwerkspeler (alleen aan/uit + volume)"
+      }
+    }
+  },
+  "entity": {
+    "button": {
+      "volume_up": {
+        "name": "Volume omhoog"
+      },
+      "volume_down": {
+        "name": "Volume omlaag"
+      }
+    },
+    "number": {
+      "volume": {
+        "name": "Volume"
+      }
+    },
+    "select": {
+      "input": {
+        "name": "Ingang"
+      },
+      "dsp_mode": {
+        "name": "DSP-modus"
+      }
+    },
+    "sensor": {
+      "volume_status": {
+        "name": "Volume (status)"
+      },
+      "input_status": {
+        "name": "Ingang (status)"
+      },
+      "dsp_mode_status": {
+        "name": "DSP-modus (status)"
+      }
+    },
+    "switch": {
+      "power": {
+        "name": "Aan/uit"
+      },
+      "mute": {
+        "name": "Dempen"
+      }
+    }
+  },
+  "services": {
+    "volume_up": {
+      "name": "Volume omhoog",
+      "description": "Verhoogt het volume met een aantal stappen via !1vol.u.",
+      "fields": {
+        "device_id": {
+          "name": "Apparaat",
+          "description": "Primare-apparaat (aanbevolen)."
+        },
+        "entry_id": {
+          "name": "Invoer-ID",
+          "description": "Alternatief: entry_id van het apparaat (oude methode)."
+        },
+        "device_name": {
+          "name": "Apparaatnaam",
+          "description": "Alternatief: naam van het apparaat (oude methode)."
+        },
+        "times": {
+          "name": "Keren",
+          "description": "Aantal stappen om te verhogen (1–10)."
+        }
+      }
+    },
+    "volume_down": {
+      "name": "Volume omlaag",
+      "description": "Verlaagt het volume met een aantal stappen via !1vol.d.",
+      "fields": {
+        "device_id": {
+          "name": "Apparaat",
+          "description": "Primare-apparaat (aanbevolen)."
+        },
+        "entry_id": {
+          "name": "Invoer-ID",
+          "description": "Alternatief: entry_id van het apparaat (oude methode)."
+        },
+        "device_name": {
+          "name": "Apparaatnaam",
+          "description": "Alternatief: naam van het apparaat (oude methode)."
+        },
+        "times": {
+          "name": "Keren",
+          "description": "Aantal stappen om te verlagen (1–10)."
+        }
+      }
+    },
+    "volume_relative": {
+      "name": "Relatief volume",
+      "description": "Wijzigt het volume met een positieve/negatieve delta (stappen of absoluut).",
+      "fields": {
+        "device_id": {
+          "name": "Apparaat",
+          "description": "Primare-apparaat (aanbevolen)."
+        },
+        "entry_id": {
+          "name": "Invoer-ID",
+          "description": "Alternatief: entry_id van het apparaat (oude methode)."
+        },
+        "device_name": {
+          "name": "Apparaatnaam",
+          "description": "Alternatief: naam van het apparaat (oude methode)."
+        },
+        "delta": {
+          "name": "Delta",
+          "description": "Positief = luider, negatief = zachter."
+        },
+        "mode": {
+          "name": "Modus",
+          "description": "steps: gebruikt !1vol.u/d; absolute: stuurt !1vol.NN met huidig+delta."
+        },
+        "step_delay_ms": {
+          "name": "Stapvertraging (ms)",
+          "description": "Vertraging tussen stapcommando's (alleen voor mode=steps)."
+        }
+      }
+    },
+    "volume_fade": {
+      "name": "Volume faden",
+      "description": "Fadet van het huidige naar het doelvolume. Een lopende fade op hetzelfde apparaat wordt geannuleerd.",
+      "fields": {
+        "device_id": {
+          "name": "Apparaat",
+          "description": "Primare-apparaat (aanbevolen)."
+        },
+        "entry_id": {
+          "name": "Invoer-ID",
+          "description": "Alternatief: entry_id van het apparaat (oude methode)."
+        },
+        "device_name": {
+          "name": "Apparaatnaam",
+          "description": "Alternatief: naam van het apparaat (oude methode)."
+        },
+        "target": {
+          "name": "Doelvolume",
+          "description": "Doelvolume (0–99). Standaard 0 (uitfaden)."
+        },
+        "duration_ms": {
+          "name": "Duur (ms)",
+          "description": "Totale fadeduur in milliseconden."
+        },
+        "easing": {
+          "name": "Curve",
+          "description": "Fadecurve."
+        },
+        "mode": {
+          "name": "Modus",
+          "description": "absolute: stuur !1vol.NN-stappen; steps: gebruik !1vol.u/d voor elke substap."
+        },
+        "steps": {
+          "name": "Stappen",
+          "description": "Aantal interpolatiestappen (1–100)."
+        },
+        "step_delay_ms": {
+          "name": "Stapvertraging (ms, steps-modus)",
+          "description": "Alleen gebruikt wanneer mode=steps (vertraging tussen !1vol.u/d)."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "unknown_input": {
+      "message": "Onbekende ingang: {option}"
+    },
+    "unknown_dsp_mode": {
+      "message": "Onbekende DSP-modus: {option}"
+    },
+    "no_device": {
+      "message": "Geen Primare-apparaat geladen."
+    },
+    "select_one_device": {
+      "message": "Selecteer precies één apparaat."
+    },
+    "device_not_found": {
+      "message": "Apparaat niet gevonden: {device_id}"
+    },
+    "entry_not_found": {
+      "message": "entry_id niet gevonden: {entry_id}"
+    },
+    "device_name_ambiguous": {
+      "message": "device_name niet gevonden of dubbelzinnig: {name} (bekend: {known})"
+    },
+    "several_devices": {
+      "message": "Meerdere Primare-apparaten – geef er één op."
+    },
+    "not_connected": {
+      "message": "Niet verbonden: {error}"
+    },
+    "volume_unknown": {
+      "message": "Huidig volume onbekend."
+    },
+    "streamer_not_controllable": {
+      "message": "Netwerkspeler niet bestuurbaar: {error}"
+    }
+  }
+}

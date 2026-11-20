@@ -1,0 +1,256 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Añadir dispositivo Primare",
+        "data": {
+          "ip_address": "Dirección IP",
+          "port": "Puerto",
+          "device_name": "Nombre",
+          "device_type": "Tipo de dispositivo"
+        },
+        "data_description": {
+          "port": "Valor predeterminado de Primare: 50006",
+          "device_name": "Se usa como nombre del dispositivo y prefijo de entidad, p. ej. SP25"
+        }
+      },
+      "reconfigure": {
+        "title": "Cambiar conexión",
+        "data": {
+          "ip_address": "Dirección IP",
+          "port": "Puerto"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "No se puede conectar. Comprueba la dirección IP, el puerto y el modo de espera de red."
+    },
+    "abort": {
+      "already_configured": "Este dispositivo ya está configurado.",
+      "reconfigure_successful": "Conexión actualizada."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Opciones de Primare",
+        "data": {
+          "device_type": "Tipo de dispositivo",
+          "max_volume": "Volumen máximo",
+          "inputs": "Entradas / preajustes"
+        },
+        "data_description": {
+          "max_volume": "Home Assistant nunca establece un volumen más alto: control deslizante, voz, automatización o acción. 99 = sin límite. El dispositivo en sí no está limitado.",
+          "inputs": "Una línea por entrada: número = nombre (1–17). Déjalo vacío para no mostrar el selector de entrada."
+        }
+      }
+    },
+    "error": {
+      "invalid_inputs": "Línea no válida. Formato: 4 = HDMI ARC (número 1–17, cada nombre solo una vez)."
+    }
+  },
+  "selector": {
+    "device_type": {
+      "options": {
+        "multichannel": "SP25 / SPA25 (preajustes + DSP)",
+        "stereo": "Preamplificador/amplificador integrado (entradas)",
+        "streamer": "Reproductor de red (solo encendido + volumen)"
+      }
+    }
+  },
+  "entity": {
+    "button": {
+      "volume_up": {
+        "name": "Subir volumen"
+      },
+      "volume_down": {
+        "name": "Bajar volumen"
+      }
+    },
+    "number": {
+      "volume": {
+        "name": "Volumen"
+      }
+    },
+    "select": {
+      "input": {
+        "name": "Entrada"
+      },
+      "dsp_mode": {
+        "name": "Modo DSP"
+      }
+    },
+    "sensor": {
+      "volume_status": {
+        "name": "Volumen (estado)"
+      },
+      "input_status": {
+        "name": "Entrada (estado)"
+      },
+      "dsp_mode_status": {
+        "name": "Modo DSP (estado)"
+      }
+    },
+    "switch": {
+      "power": {
+        "name": "Encendido"
+      },
+      "mute": {
+        "name": "Silenciar"
+      }
+    }
+  },
+  "services": {
+    "volume_up": {
+      "name": "Subir volumen",
+      "description": "Sube el volumen un número de pasos usando !1vol.u.",
+      "fields": {
+        "device_id": {
+          "name": "Dispositivo",
+          "description": "Dispositivo Primare (recomendado)."
+        },
+        "entry_id": {
+          "name": "ID de entrada",
+          "description": "Alternativa: entry_id del dispositivo (método antiguo)."
+        },
+        "device_name": {
+          "name": "Nombre del dispositivo",
+          "description": "Alternativa: nombre del dispositivo (método antiguo)."
+        },
+        "times": {
+          "name": "Veces",
+          "description": "Número de pasos para subir (1–10)."
+        }
+      }
+    },
+    "volume_down": {
+      "name": "Bajar volumen",
+      "description": "Baja el volumen un número de pasos usando !1vol.d.",
+      "fields": {
+        "device_id": {
+          "name": "Dispositivo",
+          "description": "Dispositivo Primare (recomendado)."
+        },
+        "entry_id": {
+          "name": "ID de entrada",
+          "description": "Alternativa: entry_id del dispositivo (método antiguo)."
+        },
+        "device_name": {
+          "name": "Nombre del dispositivo",
+          "description": "Alternativa: nombre del dispositivo (método antiguo)."
+        },
+        "times": {
+          "name": "Veces",
+          "description": "Número de pasos para bajar (1–10)."
+        }
+      }
+    },
+    "volume_relative": {
+      "name": "Volumen relativo",
+      "description": "Cambia el volumen según un delta positivo/negativo (pasos o absoluto).",
+      "fields": {
+        "device_id": {
+          "name": "Dispositivo",
+          "description": "Dispositivo Primare (recomendado)."
+        },
+        "entry_id": {
+          "name": "ID de entrada",
+          "description": "Alternativa: entry_id del dispositivo (método antiguo)."
+        },
+        "device_name": {
+          "name": "Nombre del dispositivo",
+          "description": "Alternativa: nombre del dispositivo (método antiguo)."
+        },
+        "delta": {
+          "name": "Delta",
+          "description": "Positivo = más alto, negativo = más bajo."
+        },
+        "mode": {
+          "name": "Modo",
+          "description": "steps: usa !1vol.u/d; absolute: envía !1vol.NN con actual+delta."
+        },
+        "step_delay_ms": {
+          "name": "Retardo entre pasos (ms)",
+          "description": "Retardo entre comandos de paso (solo para mode=steps)."
+        }
+      }
+    },
+    "volume_fade": {
+      "name": "Fundido de volumen",
+      "description": "Realiza un fundido desde el volumen actual hasta el objetivo. Un fundido en curso en el mismo dispositivo se cancela.",
+      "fields": {
+        "device_id": {
+          "name": "Dispositivo",
+          "description": "Dispositivo Primare (recomendado)."
+        },
+        "entry_id": {
+          "name": "ID de entrada",
+          "description": "Alternativa: entry_id del dispositivo (método antiguo)."
+        },
+        "device_name": {
+          "name": "Nombre del dispositivo",
+          "description": "Alternativa: nombre del dispositivo (método antiguo)."
+        },
+        "target": {
+          "name": "Volumen objetivo",
+          "description": "Volumen objetivo (0–99). Predeterminado 0 (fundido de salida)."
+        },
+        "duration_ms": {
+          "name": "Duración (ms)",
+          "description": "Duración total del fundido en milisegundos."
+        },
+        "easing": {
+          "name": "Curva",
+          "description": "Curva del fundido."
+        },
+        "mode": {
+          "name": "Modo",
+          "description": "absolute: envía pasos !1vol.NN; steps: usa !1vol.u/d en cada subpaso."
+        },
+        "steps": {
+          "name": "Pasos",
+          "description": "Número de pasos de interpolación (1–100)."
+        },
+        "step_delay_ms": {
+          "name": "Retardo entre pasos (ms, modo steps)",
+          "description": "Solo se usa cuando mode=steps (retardo entre !1vol.u/d)."
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "unknown_input": {
+      "message": "Entrada desconocida: {option}"
+    },
+    "unknown_dsp_mode": {
+      "message": "Modo DSP desconocido: {option}"
+    },
+    "no_device": {
+      "message": "No hay ningún dispositivo Primare cargado."
+    },
+    "select_one_device": {
+      "message": "Selecciona exactamente un dispositivo."
+    },
+    "device_not_found": {
+      "message": "Dispositivo no encontrado: {device_id}"
+    },
+    "entry_not_found": {
+      "message": "entry_id no encontrado: {entry_id}"
+    },
+    "device_name_ambiguous": {
+      "message": "device_name no encontrado o ambiguo: {name} (conocidos: {known})"
+    },
+    "several_devices": {
+      "message": "Varios dispositivos Primare: especifica uno."
+    },
+    "not_connected": {
+      "message": "No conectado: {error}"
+    },
+    "volume_unknown": {
+      "message": "Volumen actual desconocido."
+    },
+    "streamer_not_controllable": {
+      "message": "El reproductor de red no se puede controlar: {error}"
+    }
+  }
+}
