@@ -18,7 +18,7 @@ Tested with SP25, Pre35 and NP5 MKII.
 
 - Changes made on the device, the remote or the Prisma app show up in Home Assistant immediately.
 - Reconnects on its own if the device was switched off or the network was interrupted.
-- One media player per device for everything: power, volume, mute, input and DSP mode – and what the built-in Prisma streamer is playing, with play, pause, stop and skip.
+- One media player per device for everything: power, volume, mute, input and DSP mode – and what the built-in Prisma streamer is playing, with play, pause, stop, skip and seek within a track (where the device reports its length).
 - The device page shows the model and the firmware the way the Prisma app does, e.g. `3.15 (Streaming 15644 · Cast 1.52)`.
 - Input names, device type and a maximum volume can be set in the UI.
 - Actions for stepping and fading the volume, e.g. for automations.
@@ -95,7 +95,6 @@ Tested on Pre35 and SP25:
 
 Good to know:
 
-- Seeking within a track is not available.
 - Switching directly between Tidal and Qobuz in the Prisma app can confuse the device. Stop playback before switching services; if it happens, unplug the device briefly.
 
 ## Upgrading
