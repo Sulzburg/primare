@@ -2,28 +2,25 @@
   "config": {
     "step": {
       "user": {
-        "title": "Ajouter un appareil Primare",
+        "title": "Ajouter un appareil Primare Prisma",
         "data": {
           "ip_address": "Adresse IP",
-          "port": "Port",
           "device_name": "Nom",
           "device_type": "Type d'appareil"
         },
         "data_description": {
-          "port": "Valeur par défaut Primare : 50006",
           "device_name": "Utilisé comme nom d'appareil et préfixe d'entité, p. ex. SP25"
         }
       },
       "reconfigure": {
         "title": "Modifier la connexion",
         "data": {
-          "ip_address": "Adresse IP",
-          "port": "Port"
+          "ip_address": "Adresse IP"
         }
       }
     },
     "error": {
-      "cannot_connect": "Connexion impossible. Vérifiez l'adresse IP, le port et la veille réseau."
+      "cannot_connect": "Connexion impossible. Vérifiez l'adresse IP et la veille réseau."
     },
     "abort": {
       "already_configured": "Cet appareil est déjà configuré.",
@@ -52,9 +49,9 @@
   "selector": {
     "device_type": {
       "options": {
-        "multichannel": "SP25 / SPA25 (préréglages + DSP)",
-        "stereo": "Préamplificateur/amplificateur intégré (entrées)",
-        "streamer": "Lecteur réseau (alimentation + volume uniquement)"
+        "multichannel": "Home-cinéma (SP25 / SPA25)",
+        "stereo": "Préamplificateur/amplificateur intégré",
+        "streamer": "Lecteur réseau (NP5 / NP5 MKII)"
       }
     }
   },

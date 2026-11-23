@@ -2,28 +2,25 @@
   "config": {
     "step": {
       "user": {
-        "title": "Primare-apparaat toevoegen",
+        "title": "Primare Prisma-apparaat toevoegen",
         "data": {
           "ip_address": "IP-adres",
-          "port": "Poort",
           "device_name": "Naam",
           "device_type": "Apparaattype"
         },
         "data_description": {
-          "port": "Primare-standaard: 50006",
           "device_name": "Gebruikt als apparaatnaam en entiteitsprefix, bijv. SP25"
         }
       },
       "reconfigure": {
         "title": "Verbinding wijzigen",
         "data": {
-          "ip_address": "IP-adres",
-          "port": "Poort"
+          "ip_address": "IP-adres"
         }
       }
     },
     "error": {
-      "cannot_connect": "Kan geen verbinding maken. Controleer IP-adres, poort en netwerkstand-by."
+      "cannot_connect": "Kan geen verbinding maken. Controleer IP-adres en netwerkstand-by."
     },
     "abort": {
       "already_configured": "Dit apparaat is al geconfigureerd.",
@@ -52,9 +49,9 @@
   "selector": {
     "device_type": {
       "options": {
-        "multichannel": "SP25 / SPA25 (presets + DSP)",
-        "stereo": "Voor-/geïntegreerde versterker (ingangen)",
-        "streamer": "Netwerkspeler (alleen aan/uit + volume)"
+        "multichannel": "Thuisbioscoop (SP25 / SPA25)",
+        "stereo": "Voor-/geïntegreerde versterker",
+        "streamer": "Netwerkspeler (NP5 / NP5 MKII)"
       }
     }
   },

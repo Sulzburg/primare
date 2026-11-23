@@ -2,28 +2,25 @@
   "config": {
     "step": {
       "user": {
-        "title": "Primare-Gerät hinzufügen",
+        "title": "Primare Prisma-Gerät hinzufügen",
         "data": {
           "ip_address": "IP-Adresse",
-          "port": "Port",
           "device_name": "Name",
           "device_type": "Gerätetyp"
         },
         "data_description": {
-          "port": "Primare-Standard: 50006",
           "device_name": "Wird Gerätename und Präfix der Entitäten, z. B. SP25"
         }
       },
       "reconfigure": {
         "title": "Verbindung ändern",
         "data": {
-          "ip_address": "IP-Adresse",
-          "port": "Port"
+          "ip_address": "IP-Adresse"
         }
       }
     },
     "error": {
-      "cannot_connect": "Keine Verbindung zum Gerät. IP-Adresse, Port und Netzwerk-Standby prüfen."
+      "cannot_connect": "Keine Verbindung zum Gerät. IP-Adresse und Netzwerk-Standby prüfen."
     },
     "abort": {
       "already_configured": "Dieses Gerät ist bereits eingerichtet.",
@@ -52,9 +49,9 @@
   "selector": {
     "device_type": {
       "options": {
-        "multichannel": "SP25 / SPA25 (Presets + DSP)",
-        "stereo": "Vor-/Vollverstärker (Eingänge)",
-        "streamer": "Netzwerkplayer (nur Power + Lautstärke)"
+        "multichannel": "Heimkino (SP25 / SPA25)",
+        "stereo": "Vor-/Vollverstärker",
+        "streamer": "Netzwerkspieler (NP5 / NP5 MKII)"
       }
     }
   },

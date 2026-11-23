@@ -2,28 +2,25 @@
   "config": {
     "step": {
       "user": {
-        "title": "Lägg till Primare-enhet",
+        "title": "Lägg till Primare Prisma-enhet",
         "data": {
           "ip_address": "IP-adress",
-          "port": "Port",
           "device_name": "Namn",
           "device_type": "Enhetstyp"
         },
         "data_description": {
-          "port": "Primare-standard: 50006",
           "device_name": "Används som enhetsnamn och entitetsprefix, t.ex. SP25"
         }
       },
       "reconfigure": {
         "title": "Ändra anslutning",
         "data": {
-          "ip_address": "IP-adress",
-          "port": "Port"
+          "ip_address": "IP-adress"
         }
       }
     },
     "error": {
-      "cannot_connect": "Kan inte ansluta. Kontrollera IP-adress, port och nätverksstandby."
+      "cannot_connect": "Kan inte ansluta. Kontrollera IP-adress och nätverksstandby."
     },
     "abort": {
       "already_configured": "Den här enheten är redan konfigurerad.",
@@ -52,9 +49,9 @@
   "selector": {
     "device_type": {
       "options": {
-        "multichannel": "SP25 / SPA25 (förval + DSP)",
-        "stereo": "För-/integrerad förstärkare (ingångar)",
-        "streamer": "Nätverksspelare (endast ström + volym)"
+        "multichannel": "Hemmabio (SP25 / SPA25)",
+        "stereo": "För-/integrerad förstärkare",
+        "streamer": "Nätverksspelare (NP5 / NP5 MKII)"
       }
     }
   },

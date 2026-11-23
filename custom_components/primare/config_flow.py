@@ -1,4 +1,4 @@
-"""Einrichtung, Neukonfiguration (IP/Port) und Optionen (Gerätetyp, Eingänge)."""
+"""Einrichtung, Neukonfiguration (IP) und Optionen (Gerätetyp, Eingänge)."""
 
 from __future__ import annotations
 
@@ -50,9 +50,6 @@ TYPE_SELECTOR = SelectSelector(
         mode=SelectSelectorMode.LIST,
     )
 )
-PORT_SELECTOR = NumberSelector(
-    NumberSelectorConfig(min=1, max=65535, mode=NumberSelectorMode.BOX)
-)
 
 
 async def _test(host: str, port: int) -> str | None:
@@ -75,17 +72,19 @@ class PrimareConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         errors: dict[str, str] = {}
         if user_input is not None:
-            user_input[CONF_PORT] = int(user_input[CONF_PORT])
             self._async_abort_entries_match({CONF_HOST: user_input[CONF_HOST]})
-            if not (error := await _test(user_input[CONF_HOST], user_input[CONF_PORT])):
-                data = {**user_input, CONF_DEVICE_TYPE: TYPE_OPTIONS[user_input[CONF_DEVICE_TYPE]]}
+            if not (error := await _test(user_input[CONF_HOST], DEFAULT_PORT)):
+                data = {
+                    **user_input,
+                    CONF_PORT: DEFAULT_PORT,
+                    CONF_DEVICE_TYPE: TYPE_OPTIONS[user_input[CONF_DEVICE_TYPE]],
+                }
                 return self.async_create_entry(title=user_input[CONF_NAME], data=data)
             errors["base"] = error
 
         schema = vol.Schema(
             {
                 vol.Required(CONF_HOST): str,
-                vol.Required(CONF_PORT, default=DEFAULT_PORT): PORT_SELECTOR,
                 vol.Required(CONF_NAME): str,
                 vol.Required(CONF_DEVICE_TYPE, default=TYPE_MULTICHANNEL.lower()): TYPE_SELECTOR,
             }
@@ -102,19 +101,16 @@ class PrimareConfigFlow(ConfigFlow, domain=DOMAIN):
         entry = self._get_reconfigure_entry()
         errors: dict[str, str] = {}
         if user_input is not None:
-            host, port = user_input[CONF_HOST], int(user_input[CONF_PORT])
-            if not (error := await _test(host, port)):
+            host = user_input[CONF_HOST]
+            if not (error := await _test(host, DEFAULT_PORT)):
                 return self.async_update_reload_and_abort(
-                    entry, data_updates={CONF_HOST: host, CONF_PORT: port}
+                    entry, data_updates={CONF_HOST: host, CONF_PORT: DEFAULT_PORT}
                 )
             errors["base"] = error
 
         schema = vol.Schema(
             {
                 vol.Required(CONF_HOST, default=entry.data[CONF_HOST]): str,
-                vol.Required(
-                    CONF_PORT, default=entry.data.get(CONF_PORT, DEFAULT_PORT)
-                ): PORT_SELECTOR,
             }
         )
         return self.async_show_form(step_id="reconfigure", data_schema=schema, errors=errors)

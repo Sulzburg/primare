@@ -77,6 +77,21 @@ class DeviceProfile:
         return {TYPE_MULTICHANNEL: 17, TYPE_STEREO: 13}.get(self.device_type)
 
     @property
+    def fixed_source(self) -> str | None:
+        """Woher der Fixed-Lautstärke-Status kommt.
+
+        - ``"input"``  (Stereo/Pre35): pro aktivem Eingang (``fixedvol``).
+        - ``"output"`` (Streamer/NP5): geräteweiter Ausgang (``output``).
+        - ``None``     (Multichannel/SP25/SPA25): Eingänge per OSD, kein lesbarer
+          Fixed-Status → gar nicht abfragen, Regler bleibt immer da.
+        """
+        if self.device_type == TYPE_STEREO:
+            return "input"
+        if self.device_type == TYPE_STREAMER:
+            return "output"
+        return None
+
+    @property
     def queries(self) -> tuple[str, ...]:
         keys = ["pow", "vol"]
         if self.has_mute:
