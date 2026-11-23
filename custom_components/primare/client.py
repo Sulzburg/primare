@@ -18,6 +18,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Callable
 import contextlib
+import json
 import logging
 import re
 
@@ -97,6 +98,9 @@ class PrimareClient:
         self._fade_task: asyncio.Task | None = None
         self._requery_task: asyncio.Task | None = None
         self._buf = ""
+        # In-Band-Abfrage (binär 50006): der _read_loop füllt den Puffer und weckt den Event.
+        self._capture_buf = b""
+        self._capture_event: asyncio.Event | None = None
         self._stopping = False
         self._connected_once = asyncio.Event()
 
@@ -140,6 +144,9 @@ class PrimareClient:
 
     async def _close(self) -> None:
         writer, self._writer, self._reader = self._writer, None, None
+        # Wartende In-Band-Abfrage aufwecken -> sie sieht die fehlende Verbindung und bricht ab.
+        if self._capture_event is not None:
+            self._capture_event.set()
         if writer:
             writer.close()
             with contextlib.suppress(Exception):
@@ -210,6 +217,11 @@ class PrimareClient:
             if not data:
                 raise ConnectionError("device closed the connection")
             probe_pending = False
+            # Läuft eine In-Band-Abfrage? Bytes zusätzlich mitschneiden (feed-both):
+            # die ASCII-Schleife bekommt sie trotzdem, es geht also kein Update verloren.
+            if self._capture_event is not None:
+                self._capture_buf += data
+                self._capture_event.set()
             self._feed(data.decode("ascii", errors="replace"))
 
     async def _query_all(self) -> None:
@@ -343,6 +355,92 @@ class PrimareClient:
             await self.send(cmd)
             if delay > 0 and i < abs(delta) - 1:
                 await asyncio.sleep(delay)
+
+    # ------------------------------------------------ Fixed-Lautstärke (binär 50006)
+    # Die Prisma-App nutzt auf 50006 eine binäre JSON-Variante. Wir fragen damit nur
+    # LESEND den Fixed-Status ab – über die BESTEHENDE Verbindung (keine zweite!),
+    # die Antwort wird im _read_loop mitgeschnitten, der ASCII-Parser ignoriert sie:
+    #   Eingang-Detail:  00 04 00 02 30 <ix>  -> JSON u. a. mit "fixedvol" (0/1), "alias"
+    #   Geräte-Settings: 00 03 00 02 52       -> JSON u. a. mit "output" (0/1)  [Streamer]
+    # Das Gerät streut auf derselben Leitung Broadcasts ein (z. B. nach einem
+    # Eingangswechsel die 800-Byte-Eingangsliste ``{"src":[…]}``). Deshalb wird NICHT
+    # das erste JSON genommen, sondern so lange weitergelesen, bis ein Objekt mit dem
+    # erwarteten Schlüssel auftaucht – Fremd-Frames werden übersprungen (kein Retry nötig).
+    @staticmethod
+    def _json_with_key(buf: bytes, key: str) -> dict | None:
+        """Erstes JSON-Objekt im Puffer, das ``key`` enthält (überspringt Fremd-Frames)."""
+        text = buf.decode("utf-8", "ignore")
+        decoder = json.JSONDecoder()
+        idx = text.find("{")
+        while idx >= 0:
+            try:
+                obj, _ = decoder.raw_decode(text, idx)
+            except ValueError:
+                obj = None
+            if isinstance(obj, dict) and key in obj:
+                return obj
+            idx = text.find("{", idx + 1)
+        return None
+
+    async def _binary_request(
+        self, payload: bytes, want_key: str, timeout: float = 3.0, resend: float = 0.9
+    ) -> dict | None:
+        """Payload senden und mitlesen, bis ein JSON-Objekt mit ``want_key`` kommt.
+
+        Fremd-Frames (Broadcasts) werden übersprungen. Antwortet das Gerät gar nicht
+        passend (die Antwort steckt z. B. in einem Broadcast), wird im selben Aufruf
+        nach ``resend`` Sekunden erneut gefragt – bis ``timeout``. Von außen ein Aufruf.
+        """
+        if self._capture_event is not None:
+            return None  # schon eine Abfrage unterwegs
+        if self._writer is None or self._writer.is_closing():
+            return None
+        loop = asyncio.get_running_loop()
+        self._capture_buf = b""
+        event = asyncio.Event()
+        self._capture_event = event
+        try:
+            deadline = loop.time() + timeout
+            next_send = loop.time()  # erste Abfrage sofort
+            while True:
+                if loop.time() >= next_send:
+                    async with self._send_lock:
+                        writer = self._writer
+                        if writer is None or writer.is_closing():
+                            return None
+                        writer.write(payload)
+                        await writer.drain()
+                    next_send = loop.time() + resend
+                event.clear()
+                obj = self._json_with_key(self._capture_buf, want_key)
+                if obj is not None:
+                    _LOGGER.debug("%s: binary %s -> %s", self.name, payload.hex(), obj)
+                    return obj
+                if self._writer is None or self._writer.is_closing():
+                    return None
+                remaining = min(next_send, deadline) - loop.time()
+                if deadline - loop.time() <= 0:
+                    _LOGGER.debug("%s: binary %s -> timeout (kein %r)", self.name, payload.hex(), want_key)
+                    return None
+                if remaining > 0:
+                    with contextlib.suppress(asyncio.TimeoutError):
+                        await asyncio.wait_for(event.wait(), remaining)
+        except OSError:
+            return None
+        finally:
+            if self._capture_event is event:
+                self._capture_event = None
+
+    async def read_output_fixed(self) -> bool | None:
+        """Streamer: True, wenn der Ausgang fest ist (``output`` = 1). None = unbekannt."""
+        data = await self._binary_request(b"\x00\x03\x00\x02\x52", "output")
+        return None if data is None else str(data.get("output")) == "1"
+
+    async def read_input_detail(self, ix: int) -> dict | None:
+        """Eingang-Detail (u. a. ``fixedvol`` und ``alias``) oder None."""
+        return await self._binary_request(
+            bytes([0x00, 0x04, 0x00, 0x02, 0x30, ix & 0xFF]), "fixedvol"
+        )
 
     # ---------------------------------------------------------------- Überblenden
     def cancel_fade(self) -> None:

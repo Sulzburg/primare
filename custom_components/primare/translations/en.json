@@ -2,28 +2,25 @@
   "config": {
     "step": {
       "user": {
-        "title": "Add Primare device",
+        "title": "Add Primare Prisma device",
         "data": {
           "ip_address": "IP address",
-          "port": "Port",
           "device_name": "Name",
           "device_type": "Device type"
         },
         "data_description": {
-          "port": "Primare default: 50006",
           "device_name": "Used as device name and entity prefix, e.g. SP25"
         }
       },
       "reconfigure": {
         "title": "Change connection",
         "data": {
-          "ip_address": "IP address",
-          "port": "Port"
+          "ip_address": "IP address"
         }
       }
     },
     "error": {
-      "cannot_connect": "Cannot connect. Check IP address, port and network standby."
+      "cannot_connect": "Cannot connect. Check IP address and network standby."
     },
     "abort": {
       "already_configured": "This device is already configured.",
@@ -52,9 +49,9 @@
   "selector": {
     "device_type": {
       "options": {
-        "multichannel": "SP25 / SPA25 (Presets + DSP)",
-        "stereo": "Pre/integrated amplifier (inputs)",
-        "streamer": "Network player (power + volume only)"
+        "multichannel": "Home cinema (SP25 / SPA25)",
+        "stereo": "Pre/integrated amplifier",
+        "streamer": "Network player (NP5 / NP5 MKII)"
       }
     }
   },

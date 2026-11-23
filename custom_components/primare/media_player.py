@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import logging
+from datetime import timedelta
+
 from homeassistant.components.media_player import (
     MediaPlayerDeviceClass,
     MediaPlayerEntity,
@@ -12,6 +15,7 @@ from homeassistant.components.media_player import (
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
+from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.util import dt as dt_util
 
 from . import PrimareConfigEntry
@@ -31,6 +35,9 @@ TRANSPORT = (
     | MediaPlayerEntityFeature.PREVIOUS_TRACK
 )
 POSITION_SLACK = 2
+FIXED_POLL_INTERVAL = timedelta(minutes=5)
+
+_LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
@@ -56,6 +63,9 @@ class PrimareMediaPlayer(PrimareEntity, MediaPlayerEntity):
         self._was_streaming: bool | None = None
         self._track = None
         self._last_playback = None
+        self._fixed: bool | None = None
+        self._last_input: int | None = None
+        self._was_connected: bool | None = None
         p = self._profile
         features = (
             MediaPlayerEntityFeature.TURN_ON
@@ -78,6 +88,14 @@ class PrimareMediaPlayer(PrimareEntity, MediaPlayerEntity):
     async def async_added_to_hass(self) -> None:
         await super().async_added_to_hass()
         self.async_on_remove(self._streamer.add_listener(self._handle_streamer_update))
+        # SP25/SPA25 (fixed_source None) fragen nie ab: kein Start-Check, kein Poll.
+        if self._profile.fixed_source is not None:
+            self._last_input = self._client.input
+            self._was_connected = self._client.connected
+            self.hass.async_create_task(self._update_fixed())
+            self.async_on_remove(
+                async_track_time_interval(self.hass, self._poll_fixed, FIXED_POLL_INTERVAL)
+            )
         self._refresh()
 
     # ---------------------------------------------------------------- updates
@@ -89,6 +107,19 @@ class PrimareMediaPlayer(PrimareEntity, MediaPlayerEntity):
             # Woke up or switched to the streamer: the old track is no longer valid
             self._streamer.async_invalidate()
         self._was_streaming = streaming
+        if self._profile.fixed_source is not None:
+            connected = self._client.connected
+            # Sofort nach (Wieder-)Verbindung neu abfragen – sonst zöge erst der
+            # 5-Minuten-Poll nach (die Startabfrage läuft evtl. vor dem Connect).
+            reconnected = connected and self._was_connected is False
+            self._was_connected = connected
+            input_changed = (
+                self._profile.fixed_source == "input"
+                and self._client.input != self._last_input
+            )
+            if reconnected or input_changed:
+                self._last_input = self._client.input
+                self.hass.async_create_task(self._update_fixed())
         self._refresh()
         self.async_write_ha_state()
 
@@ -96,6 +127,48 @@ class PrimareMediaPlayer(PrimareEntity, MediaPlayerEntity):
     def _handle_streamer_update(self) -> None:
         self._refresh()
         self.async_write_ha_state()
+
+    async def _poll_fixed(self, _now=None) -> None:
+        await self._update_fixed()
+
+    async def _update_fixed(self) -> None:
+        """Fixed-Status (Regler sinnlos) neu ermitteln; bei Änderung Features anpassen."""
+        fixed = await self._read_fixed()
+        _LOGGER.debug("%s: volume_fixed=%s", self.entity_id, fixed)
+        if fixed != self._fixed:
+            self._fixed = fixed
+            self._refresh()
+            self.async_write_ha_state()
+
+    async def _read_fixed(self) -> bool | None:
+        """Pre35: fester aktiver Eingang (fixedvol). NP5: fester Ausgang (output)."""
+        src = self._profile.fixed_source
+        client = self._client
+        if src is None or client.power is False:
+            return None
+        if src == "output":
+            return await client.read_output_fixed()
+        # src == "input" (Pre35)
+        num = client.input
+        if num is None:
+            return None
+        # Streamer-Eingang (Prisma/Roon): der Eingangspegel ist fest, ABER die Ausgangs-/
+        # Hauptlautstärke bleibt regelbar -> Regler NICHT ausblenden (False, nicht True).
+        # Abfrage überspringen: der Geräte-Alias dort ist "Roon Ready"/Binärmüll und passt
+        # ohnehin nie auf den HA-Eingangsnamen.
+        if num == self._profile.stream_input:
+            return False
+        want = self.source
+        # Binäre ix ist 0-basiert, die ASCII-Eingangsnummer 1-basiert -> ix = num - 1.
+        # Beide probieren und nur werten, wenn der alias zum aktiven Eingang passt;
+        # passt nichts, lieber nicht ausblenden (None).
+        for ix in (num - 1, num):
+            if ix < 0:
+                continue
+            detail = await client.read_input_detail(ix)
+            if detail and detail.get("alias") == want:
+                return detail.get("fixedvol") == "1"
+        return None
 
     @property
     def _streaming(self) -> bool:
@@ -131,7 +204,7 @@ class PrimareMediaPlayer(PrimareEntity, MediaPlayerEntity):
         self._attr_app_name = (playback.source_app if playback else None) or (
             SOURCES.get(source_id) if source_id is not None else None
         )
-        self._attr_extra_state_attributes = (
+        attrs = (
             {
                 key: value
                 for key, value in {
@@ -146,6 +219,9 @@ class PrimareMediaPlayer(PrimareEntity, MediaPlayerEntity):
             if playback
             else {}
         )
+        if self._fixed is not None:
+            attrs["volume_fixed"] = self._fixed
+        self._attr_extra_state_attributes = attrs
         features = self._base_features
         if playback is not None:
             # Many devices (e.g. Pre35) do not report Next/Prev, yet the commands work –
@@ -158,6 +234,12 @@ class PrimareMediaPlayer(PrimareEntity, MediaPlayerEntity):
             # reports nothing) – needs a known track length.
             if playback.can_seek is not False and playback.duration:
                 features |= MediaPlayerEntityFeature.SEEK
+        if self._fixed:
+            # Fester Eingang/Ausgang -> Lautstärke lässt sich nicht regeln
+            features &= ~(
+                MediaPlayerEntityFeature.VOLUME_SET
+                | MediaPlayerEntityFeature.VOLUME_STEP
+            )
         self._attr_supported_features = features
         # Position only from fresh streamer data: an amplifier change (volume, input …)
         # must not re-stamp an old position. Found by yvos.

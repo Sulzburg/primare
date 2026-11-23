@@ -2,7 +2,7 @@
 
 <img src="img/icon.png" alt="Primare" title="Primare" height="100"/>
 
-Unofficial Home Assistant integration for Primare devices of the Prisma generation. Control power, volume, mute, input and DSP mode from Home Assistant – and optionally see what the built-in streamer is playing. Not affiliated with Primare.
+Unofficial Home Assistant integration for Primare Prisma devices. Control power, volume, mute, input and DSP mode from Home Assistant – and optionally see what the built-in streamer is playing. Not affiliated with Primare.
 
 ## Supported devices
 
