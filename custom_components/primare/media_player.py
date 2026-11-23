@@ -92,7 +92,7 @@ class PrimareMediaPlayer(PrimareEntity, MediaPlayerEntity):
         if self._profile.fixed_source is not None:
             self._last_input = self._client.input
             self._was_connected = self._client.connected
-            self.hass.async_create_task(self._update_fixed())
+            self._schedule_fixed_update()
             self.async_on_remove(
                 async_track_time_interval(self.hass, self._poll_fixed, FIXED_POLL_INTERVAL)
             )
@@ -119,7 +119,7 @@ class PrimareMediaPlayer(PrimareEntity, MediaPlayerEntity):
             )
             if reconnected or input_changed:
                 self._last_input = self._client.input
-                self.hass.async_create_task(self._update_fixed())
+                self._schedule_fixed_update()
         self._refresh()
         self.async_write_ha_state()
 
@@ -130,6 +130,11 @@ class PrimareMediaPlayer(PrimareEntity, MediaPlayerEntity):
 
     async def _poll_fixed(self, _now=None) -> None:
         await self._update_fixed()
+
+    def _schedule_fixed_update(self) -> None:
+        """Fixed-Status im Hintergrund neu ermitteln – nur wenn die Entität gemountet ist."""
+        if self.hass is not None:
+            self.hass.async_create_task(self._update_fixed())
 
     async def _update_fixed(self) -> None:
         """Fixed-Status (Regler sinnlos) neu ermitteln; bei Änderung Features anpassen."""
