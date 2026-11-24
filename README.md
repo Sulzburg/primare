@@ -10,7 +10,6 @@ Unofficial Home Assistant integration for Primare Prisma devices. Control power,
 |---|---|
 | Home cinema | SP25, SPA25 |
 | Pre/integrated amplifier | I15, I25, I35, SC15, Pre35 |
-| CD player | CD15, CD35 |
 | Network player | NP5, NP5 MKII |
 
 Tested with SP25, Pre35 and NP5 MKII. CD15 / CD35 untested – assumed to behave like the network player.
