@@ -1,9 +1,9 @@
 """Every entity name exists in German and English, and nothing is left hard-coded."""
 
 import json
-from pathlib import Path
 import re
 import unittest
+from pathlib import Path
 
 _DIR = Path(__file__).resolve().parents[1] / "custom_components/primare"
 _KEY = re.compile(r'_attr_translation_key = "([a-z_]+)"')

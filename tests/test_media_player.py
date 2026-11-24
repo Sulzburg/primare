@@ -1,26 +1,27 @@
 """The combined media player (3.0): amplifier and streamer in one entity."""
 
 import asyncio
-from datetime import UTC, datetime, timedelta
 import unittest
+from datetime import UTC, datetime, timedelta
 from unittest import mock
 
 from ha_stub import install
 
 install()
 
-from custom_components.primare.const import (  # noqa: E402
+from ha_stub import MediaPlayerEntityFeature as F, MediaPlayerState as S
+
+from custom_components.primare import media_player as mp
+from custom_components.primare.const import (
     DEFAULT_INPUTS,
     TYPE_MULTICHANNEL,
     TYPE_STEREO,
     TYPE_STREAMER,
     DeviceProfile,
 )
-from custom_components.primare import media_player as mp  # noqa: E402
-from custom_components.primare.luci import Playback  # noqa: E402
-from custom_components.primare.media_player import PrimareMediaPlayer  # noqa: E402
-from custom_components.primare.playback import format_firmware  # noqa: E402
-from ha_stub import MediaPlayerEntityFeature as F, MediaPlayerState as S  # noqa: E402
+from custom_components.primare.luci import Playback
+from custom_components.primare.media_player import PrimareMediaPlayer
+from custom_components.primare.playback import format_firmware
 
 PRE35_INPUTS = {1: "R35", 3: "SP25", 6: "TV", 10: "NP5", 12: "PC/MAC", 13: "Prisma"}
 

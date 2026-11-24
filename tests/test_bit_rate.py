@@ -1,9 +1,9 @@
 """UPnP reports bytes per second for PCM/FLAC; the attribute is bits per second."""
 
 import importlib.util
-from pathlib import Path
 import sys
 import unittest
+from pathlib import Path
 
 _PATH = Path(__file__).resolve().parents[1] / "custom_components/primare/luci.py"
 _spec = importlib.util.spec_from_file_location("primare_luci_bitrate", _PATH)

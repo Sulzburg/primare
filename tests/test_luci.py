@@ -3,10 +3,10 @@
 import asyncio
 import importlib.util
 import json
-from pathlib import Path
 import struct
 import sys
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 _PATH = Path(__file__).resolve().parents[1] / "custom_components/primare/luci.py"

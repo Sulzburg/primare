@@ -1,0 +1,9 @@
+# Mehrfach-"as"-Importe aus demselben Modul zusammenfassen (Home-Assistant-Stil),
+# damit ruff die Importe nicht in einzelne Statements zerlegt.
+[lint.isort]
+combine-as-imports = true
+
+# tests/ ist Entwickler-Geruest: die bandit-Sicherheitsregeln (S) – z. B. exec,
+# try/except/pass – sind dort unkritisch und werden ausgenommen.
+[lint.per-file-ignores]
+"tests/**" = ["S"]

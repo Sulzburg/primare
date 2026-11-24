@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from homeassistant.components.select import SelectEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ServiceValidationError
@@ -54,7 +56,7 @@ class PrimareInputSelect(PrimareEntity, SelectEntity):
 class PrimareDspSelect(PrimareEntity, SelectEntity):
     _attr_translation_key = "dsp_mode"
     _attr_icon = "mdi:surround-sound"
-    _attr_options = list(DSP_MAP.values())
+    _attr_options: ClassVar[list[str]] = list(DSP_MAP.values())
 
     def __init__(self, entry: PrimareConfigEntry) -> None:
         super().__init__(entry, "dsp_select")

@@ -16,11 +16,11 @@ Aufgaben:
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
 import contextlib
 import json
 import logging
 import re
+from collections.abc import Callable
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -50,7 +50,7 @@ def _ease(t: float, kind: str) -> float:
 
 
 def clamp_volume(value: float) -> int:
-    return max(0, min(VOLUME_MAX, int(round(value))))
+    return max(0, min(VOLUME_MAX, round(value)))
 
 
 async def async_probe(host: str, port: int, timeout: float = 5.0) -> None:
@@ -118,7 +118,7 @@ class PrimareClient:
         for callback in list(self._listeners):
             try:
                 callback()
-            except Exception:  # noqa: BLE001 – ein defekter Listener darf den Client nicht stoppen
+            except Exception:  # ein defekter Listener darf den Client nicht stoppen
                 _LOGGER.exception("%s: Error in listener", self.name)
 
     # ---------------------------------------------------------------- Lebenszyklus
@@ -192,7 +192,7 @@ class PrimareClient:
             ) as err:
                 if not self._stopping:
                     _LOGGER.warning("%s: Connection lost (%s)", self.name, err)
-            except Exception:  # noqa: BLE001 – die Schleife darf nie aufgeben
+            except Exception:  # die Schleife darf nie aufgeben
                 _LOGGER.exception("%s: Unexpected error – reconnecting", self.name)
             finally:
                 await self._close()

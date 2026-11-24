@@ -11,12 +11,12 @@ and aiolibresync (Alessandro Zarrilli, MIT).
 
 import asyncio
 import hashlib
-from collections.abc import Callable
-from contextlib import suppress
-from dataclasses import dataclass, replace
 import json
 import logging
 import struct
+from collections.abc import Callable
+from contextlib import suppress
+from dataclasses import dataclass, replace
 from urllib.parse import urlsplit
 
 PORT = 7777
@@ -166,7 +166,8 @@ def _playback(payload: bytes, state: int, host: str | None = None) -> Playback:
     except (ValueError, TypeError, KeyError) as err:
         raise ValueError("Invalid LUCI PlayView response") from err
     if not isinstance(view, dict):
-        raise ValueError("Invalid LUCI PlayView contents")
+        # ValueError (nicht TypeError) ist Absicht: die Aufrufer fangen hier ValueError.
+        raise ValueError("Invalid LUCI PlayView contents")  # noqa: TRY004
 
     duration = _positive(view.get("TotalTime"))
     position = _number(view.get("Current_time"))
