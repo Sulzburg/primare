@@ -51,6 +51,7 @@
       "options": {
         "multichannel": "Thuisbioscoop (SP25 / SPA25)",
         "stereo": "Voor-/geïntegreerde versterker",
+        "cd": "CD-speler (CD15 / CD35)",
         "streamer": "Netwerkspeler (NP5 / NP5 MKII)"
       }
     }

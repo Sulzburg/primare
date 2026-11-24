@@ -6,19 +6,21 @@ Unofficial Home Assistant integration for Primare Prisma devices. Control power,
 
 ## Supported devices
 
-| Type | Models |
+| Type | Models (Prisma) |
 |---|---|
-| Multichannel | SP25, SPA25 |
-| Stereo | I15, I25, I35, SC15, Pre35 (Prisma) |
+| Home cinema | SP25, SPA25 |
+| Pre/integrated amplifier | I15, I25, I35, SC15, Pre35 |
+| CD player | CD15, CD35 |
 | Network player | NP5, NP5 MKII |
 
-Tested with SP25, Pre35 and NP5 MKII.
+Tested with SP25, Pre35 and NP5 MKII. CD15 / CD35 untested – assumed to behave like the network player.
 
 ## Features
 
 - Changes made on the device, the remote or the Prisma app show up in Home Assistant immediately.
 - Reconnects on its own if the device was switched off or the network was interrupted.
 - One media player per device for everything: power, volume, mute, input and DSP mode – and what the built-in Prisma streamer is playing, with play, pause, stop, skip and seek within a track (where the device reports its length).
+- When the active input or output is set to a fixed volume, the volume control is hidden automatically – with a `volume_fixed` attribute for automations.
 - The device page shows the model and the firmware the way the Prisma app does, e.g. `3.15 (Streaming 15644 · Cast 1.52)`.
 - Input names, device type and a maximum volume can be set in the UI.
 - Actions for stepping and fading the volume, e.g. for automations.
@@ -27,27 +29,21 @@ Tested with SP25, Pre35 and NP5 MKII.
 
 ### HACS
 
-Primare is in the default HACS catalog, so you can just search for it:
-
-1. In HACS, search for **Primare** and open it.
-2. Download it and restart Home Assistant.
-
-If it doesn't show up yet (it can take a little while after a release), add it as a custom repository instead: HACS → ⋮ → **Custom repositories** → add `https://github.com/Sulzburg/primare` as *Integration*, then search for **Primare**, download it and restart Home Assistant.
+Primare is in the default HACS catalog: search for **Primare**, download it and restart Home Assistant.
 
 ### Manual
 
-1. Download `primare.zip` from the [latest release](https://github.com/Sulzburg/primare/releases/latest).
-2. Unpack it into the `custom_components` folder of your Home Assistant configuration.
-3. Restart Home Assistant.
+If Primare doesn't show up in HACS yet (it can take a little while after a release), add it as a custom repository: HACS → ⋮ → **Custom repositories** → add `https://github.com/Sulzburg/primare` as *Integration*, then search for **Primare**, download it and restart Home Assistant.
+
+Or install it by hand: download `primare.zip` from the [latest release](https://github.com/Sulzburg/primare/releases/latest), unpack it into the `custom_components` folder of your Home Assistant configuration, and restart Home Assistant.
 
 ## Setup
 
 **Settings → Devices & services → Add integration → Primare**
 
-- **IP address** of the device – best give it a fixed address in your router
-- **Port** – leave it at `50006`
+- **IP address** of the device – reserve a fixed address for it in your router, otherwise the connection breaks when the address changes (fix it afterwards under **Reconfigure**).
 - **Name** – e.g. `SP25`; your entities will be called `switch.sp25_power`, `number.sp25_volume` and so on
-- **Device type** – Multichannel, Stereo or Network player
+- **Device type** – Home cinema, Pre/integrated amplifier, CD player or Network player
 
 ### Options
 
@@ -55,22 +51,26 @@ Under **Configure** you can change:
 
 - **Device type**
 - **Maximum volume** – Home Assistant will never turn the volume higher than this, whether by slider, voice command or automation. The device itself is not limited.
-- **Inputs** – one line per input, e.g. `4 = HDMI ARC`. Preset to the factory names of the SP25 (multichannel) and Pre35 (stereo); other stereo models may number their inputs differently.
+- **Inputs** – one line per input, e.g. `4 = HDMI ARC`. Preset to the factory names of the SP25 (home cinema) and Pre35 (pre/integrated amplifier); other models may number their inputs differently.
 
 A new IP address can be entered under **Reconfigure**.
 
 ## Entities
 
-| Entity | Multichannel | Stereo | Network player |
+| Entity | Home cinema | Pre/integrated amp. | Network / CD player |
 |---|---|---|---|
 | Media player, named like the device (power, volume, mute, input, DSP mode, playback) | ✓ | ✓ | power, volume, playback |
 | Power switch | ✓ | ✓ | ✓ |
-| Mute switch | ✓ | ✓ | |
+| Mute switch | ✓ | ✓ | – |
 | Volume slider (0–99) | ✓ | ✓ | ✓ |
-| Input selection | ✓ | ✓ | |
-| DSP mode selection | ✓ | | |
+| Volume up / down buttons | ✓ | ✓ | ✓ |
+| Input selection | ✓ | ✓ | – |
+| DSP mode selection | ✓ | – | – |
+| Status sensor – volume | ✓ | ✓ | ✓ |
+| Status sensor – input | ✓ | ✓ | – |
+| Status sensor – DSP mode | ✓ | – | – |
 
-There are also status sensors and volume up/down buttons. Entity names follow the language of Home Assistant (English or German).
+Entity names follow the language of Home Assistant.
 
 ## Actions
 
@@ -83,7 +83,8 @@ There are also status sensors and volume up/down buttons. Entity names follow th
 The media player shows what the built-in streamer is playing – title, artist, album, cover, audio format – and lets you play, pause, stop and skip, no matter which app started the music. Playback contributed by [yvos](https://github.com/yvos).
 
 - On another input (e.g. a turntable) the player shows the input name.
-- *Play* works from any input and even from standby: the device switches to the streamer and turns on by itself.
+- When playback starts – from Roon, the Prisma app or any other source – the device switches to the streamer input and wakes from standby on its own.
+- Home Assistant's *Play* resumes whatever the streamer last had queued; it can't pick the music by itself.
 
 The media player also tells which service is playing, e.g. `Roon`, in its attribute `app_name` – handy for automations.
 
