@@ -51,6 +51,7 @@
       "options": {
         "multichannel": "Hemmabio (SP25 / SPA25)",
         "stereo": "För-/integrerad förstärkare",
+        "cd": "CD-spelare (CD15 / CD35)",
         "streamer": "Nätverksspelare (NP5 / NP5 MKII)"
       }
     }

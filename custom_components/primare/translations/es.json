@@ -51,6 +51,7 @@
       "options": {
         "multichannel": "Cine en casa (SP25 / SPA25)",
         "stereo": "Preamplificador/amplificador integrado",
+        "cd": "Reproductor de CD (CD15 / CD35)",
         "streamer": "Reproductor de red (NP5 / NP5 MKII)"
       }
     }

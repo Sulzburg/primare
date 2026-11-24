@@ -30,7 +30,7 @@ class TranslationTest(unittest.TestCase):
     def test_device_types_in_both_languages(self):
         const = (_DIR / "const.py").read_text(encoding="utf-8")
         types = re.findall(r'^TYPE_[A-Z]+ = "([^"]+)"', const, re.MULTILINE)
-        self.assertEqual(len(types), 3)
+        self.assertEqual(len(types), 4)
         for lang in ("de", "en"):
             selector = json.loads((_DIR / f"translations/{lang}.json").read_text(encoding="utf-8"))["selector"]
             options = selector["device_type"]["options"]

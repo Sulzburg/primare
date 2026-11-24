@@ -51,6 +51,7 @@
       "options": {
         "multichannel": "Heimkino (SP25 / SPA25)",
         "stereo": "Vor-/Vollverstärker",
+        "cd": "CD-Player (CD15 / CD35)",
         "streamer": "Netzwerkspieler (NP5 / NP5 MKII)"
       }
     }
