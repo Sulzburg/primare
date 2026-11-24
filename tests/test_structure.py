@@ -5,8 +5,8 @@ the class in two: the methods after it silently stop belonging to the class.
 """
 
 import ast
-from pathlib import Path
 import unittest
+from pathlib import Path
 
 _DIR = Path(__file__).resolve().parents[1] / "custom_components/primare"
 # Private helpers that Home Assistant's own base classes provide

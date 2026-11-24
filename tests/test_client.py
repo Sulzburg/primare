@@ -5,9 +5,9 @@ Runs without Home Assistant: python -m unittest discover tests
 
 import asyncio
 import importlib.util
-from pathlib import Path
 import sys
 import unittest
+from pathlib import Path
 from unittest.mock import patch
 
 _PATH = Path(__file__).resolve().parents[1] / "custom_components/primare/client.py"

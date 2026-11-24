@@ -3,6 +3,8 @@ Dashboards und den Verlauf erhalten – können später entfallen)."""
 
 from __future__ import annotations
 
+from typing import ClassVar
+
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
@@ -63,7 +65,7 @@ class PrimareDspSensor(PrimareEntity, SensorEntity):
     _attr_translation_key = "dsp_mode_status"
     _attr_icon = "mdi:surround-sound"
     _attr_device_class = SensorDeviceClass.ENUM
-    _attr_options = list(DSP_MAP.values())
+    _attr_options: ClassVar[list[str]] = list(DSP_MAP.values())
 
     def __init__(self, entry: PrimareConfigEntry) -> None:
         super().__init__(entry, "dsp_sensor")

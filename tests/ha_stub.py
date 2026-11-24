@@ -7,12 +7,12 @@ really depends on (states, features, entity base) are real enough to test it.
 
 from __future__ import annotations
 
-from enum import IntFlag, StrEnum
 import importlib.abc
 import importlib.machinery
-from pathlib import Path
 import sys
 import types
+from enum import IntFlag, StrEnum
+from pathlib import Path
 
 
 class _AnyMeta(type):

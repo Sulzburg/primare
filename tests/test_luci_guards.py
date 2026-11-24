@@ -2,9 +2,9 @@
 
 import asyncio
 import importlib.util
-from pathlib import Path
 import sys
 import unittest
+from pathlib import Path
 
 _PATH = Path(__file__).resolve().parents[1] / "custom_components/primare/luci.py"
 _SPEC = importlib.util.spec_from_file_location("primare_test_luci_guards", _PATH)

@@ -7,10 +7,10 @@ of the device ("Steuerung") reads it from here.
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
 from contextlib import suppress
 from datetime import timedelta
-import logging
 
 from homeassistant.components.media_player import MediaPlayerState
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
