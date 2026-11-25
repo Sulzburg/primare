@@ -10,10 +10,9 @@ Unofficial Home Assistant integration for Primare Prisma devices. Control power,
 |---|---|
 | Home cinema | SP25, SPA25 |
 | Pre/integrated amplifier | I15, I25, I35, SC15, Pre35 |
-| CD player | CD15, CD35 |
 | Network player | NP5, NP5 MKII |
 
-Tested with SP25, Pre35 and NP5 MKII. CD15 / CD35 untested – assumed to behave like the network player.
+Tested with SP25, Pre35 and NP5 MKII.
 
 ## Features
 
@@ -43,7 +42,7 @@ Or install it by hand: download `primare.zip` from the [latest release](https://
 
 - **IP address** of the device – reserve a fixed address for it in your router, otherwise the connection breaks when the address changes (fix it afterwards under **Reconfigure**).
 - **Name** – e.g. `SP25`; your entities will be called `switch.sp25_power`, `number.sp25_volume` and so on
-- **Device type** – Home cinema, Pre/integrated amplifier, CD player or Network player
+- **Device type** – Home cinema, Pre/integrated amplifier or Network player
 
 ### Options
 
@@ -57,7 +56,7 @@ A new IP address can be entered under **Reconfigure**.
 
 ## Entities
 
-| Entity | Home cinema | Pre/integrated amp. | Network / CD player |
+| Entity | Home cinema | Pre/integrated amp. | Network player |
 |---|---|---|---|
 | Media player, named like the device (power, volume, mute, input, DSP mode, playback) | ✓ | ✓ | power, volume, playback |
 | Power switch | ✓ | ✓ | ✓ |
@@ -92,7 +91,7 @@ Tested on Pre35 and SP25:
 
 | Source | Title & album | Cover | Audio format | Play / pause |
 |---|---|---|---|---|
-| Roon | ✓ | – | ✓ | ✓ (also skip) |
+| Roon | ✓ | ✓ | ✓ | ✓ (also skip) |
 | Tidal (Prisma app) | ✓ | ✓ | ✓ | ✓ |
 | Qobuz (Prisma app) | ✓ | ✓ | ✓ | |
 | UPnP, e.g. MinimServer (Prisma app) | ✓ | ✓ | ✓ | ✓ |

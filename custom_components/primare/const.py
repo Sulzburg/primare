@@ -18,9 +18,8 @@ CONF_PLAYBACK = "playback_status"  # bis 2.x: Schalter für die Entität „Wied
 
 TYPE_MULTICHANNEL = "Multichannel"  # SP25 / SPA25: Presets + DSP
 TYPE_STEREO = "Stereo"              # Vor-/Vollverstärker: Eingänge
-TYPE_CD = "CD"                      # CD15 / CD35: wie der Streamer (kein Eingang)
 TYPE_STREAMER = "Streamer"          # z. B. NP5: nur Power + Lautstärke
-DEVICE_TYPES = [TYPE_MULTICHANNEL, TYPE_STEREO, TYPE_CD, TYPE_STREAMER]
+DEVICE_TYPES = [TYPE_MULTICHANNEL, TYPE_STEREO, TYPE_STREAMER]
 
 # Vorgabe-Eingangsnamen, solange in den Optionen nichts eingetragen ist
 DEFAULT_INPUTS: dict[str, dict[int, str]] = {
@@ -37,7 +36,6 @@ DEFAULT_INPUTS: dict[str, dict[int, str]] = {
         13: "Stream",
     },
     TYPE_STREAMER: {},
-    TYPE_CD: {},
 }
 
 DSP_MAP: dict[int, str] = {
@@ -63,11 +61,11 @@ class DeviceProfile:
 
     @property
     def has_mute(self) -> bool:
-        return self.device_type not in (TYPE_STREAMER, TYPE_CD)
+        return self.device_type != TYPE_STREAMER
 
     @property
     def has_input(self) -> bool:
-        return self.device_type not in (TYPE_STREAMER, TYPE_CD) and bool(self.inputs)
+        return self.device_type != TYPE_STREAMER and bool(self.inputs)
 
     @property
     def has_dsp(self) -> bool:
@@ -83,13 +81,13 @@ class DeviceProfile:
         """Woher der Fixed-Lautstärke-Status kommt.
 
         - ``"input"``  (Stereo/Pre35): pro aktivem Eingang (``fixedvol``).
-        - ``"output"`` (Streamer/NP5, CD): geräteweiter Ausgang (``output``).
+        - ``"output"`` (Streamer/NP5): geräteweiter Ausgang (``output``).
         - ``None``     (Multichannel/SP25/SPA25): Eingänge per OSD, kein lesbarer
           Fixed-Status → gar nicht abfragen, Regler bleibt immer da.
         """
         if self.device_type == TYPE_STEREO:
             return "input"
-        if self.device_type in (TYPE_STREAMER, TYPE_CD):
+        if self.device_type == TYPE_STREAMER:
             return "output"
         return None
 
@@ -109,7 +107,6 @@ class DeviceProfile:
         return {
             TYPE_MULTICHANNEL: "SP25 / SPA25",
             TYPE_STEREO: "Stereo preamplifier",
-            TYPE_CD: "CD player",
             TYPE_STREAMER: "Network player",
         }.get(self.device_type, self.device_type)
 
